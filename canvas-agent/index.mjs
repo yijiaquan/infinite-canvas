@@ -27,6 +27,7 @@ const endpoint = "http://127.0.0.1:" + port;
 const workspace = dirname(entry);
 const origins = new Set(process.env.CANVAS_AGENT_ORIGINS?.split(",").map((value) => value.trim()).filter(Boolean) || savedConfig?.origins || []);
 const sessions = new Map();
+const SESSION_DISCONNECT_GRACE_MS = 60_000;
 const sessionRegistry = new SessionRegistry(sessions, {
     onSwitch(previous) {
         for (const pending of previous.toolsPending.values()) {
@@ -68,6 +69,8 @@ function emit(session, event, data) {
 }
 
 function closeSession(session) {
+    clearTimeout(session.disconnectTimer);
+    session.disconnectTimer = undefined;
     sessionRegistry.close(session);
     if (sessions.get(session.clientId) === session) sessions.delete(session.clientId);
     for (const pending of session.toolsPending.values()) {
@@ -246,6 +249,8 @@ function startHttp() {
             sessions.set(clientId, session);
         }
         if (session.origin !== req.headers.origin) return res.status(403).json({ error: "连接来源不匹配" });
+        clearTimeout(session.disconnectTimer);
+        session.disconnectTimer = undefined;
         const previous = session.events;
         session.events = res;
         previous?.end();
@@ -257,7 +262,13 @@ function startHttp() {
         const heartbeat = setInterval(() => res.write(": ping\n\n"), 15000);
         res.on("close", () => {
             clearInterval(heartbeat);
-            if (session.events === res) closeSession(session);
+            if (session.events !== res) return;
+            session.events = undefined;
+            sessionRegistry.close(session);
+            clearTimeout(session.disconnectTimer);
+            session.disconnectTimer = setTimeout(() => {
+                if (!session.events && sessions.get(session.clientId) === session) closeSession(session);
+            }, SESSION_DISCONNECT_GRACE_MS);
         });
     });
     app.post("/rpc", async (req, res) => {
