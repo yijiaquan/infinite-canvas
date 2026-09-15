@@ -217,7 +217,10 @@ export function useCodexAgent(options: {
             cancelTool: (requestId) => toolControllers.get(requestId)?.abort(new Error("画布工具执行超时")),
             ready: async () => {
                 setModels([]);
-                try {
+                setError("");
+                setStatus("ready");
+                void (async () => {
+                    try {
                     let cursor: string | null = null;
                     const available: CodexModel[] = [];
                     do {
@@ -228,8 +231,8 @@ export function useCodexAgent(options: {
                     if (client.current !== link || !link.connected()) return;
                     setModels(available);
                     setError("");
-                } catch (reason) { if (!(reason instanceof Error && reason.name === "AbortError")) failCodex(reason, null); }
-                finally { if (client.current === link && link.connected()) setStatus("ready"); }
+                    } catch (reason) { if (!(reason instanceof Error && reason.name === "AbortError")) failCodex(reason, null); }
+                })();
             },
         });
         client.current = link;
