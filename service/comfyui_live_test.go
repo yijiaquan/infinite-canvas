@@ -48,7 +48,7 @@ func TestComfyUILiveWorkflowConversion(t *testing.T) {
 		{"comfyui:openai-image", "/images/edits", map[string]any{"prompt": "test", "image": []any{marker("image", 0), marker("image", 1)}}},
 		{"comfyui:seedvr2-image-upscale", "/images/edits", map[string]any{"image": []any{marker("image", 0)}}},
 		{"comfyui:vosr2-image-upscale", "/images/edits", map[string]any{"image": []any{marker("image", 0)}}},
-		{"comfyui:seedvr2-upscale", "/videos", map[string]any{"video_reference[]": []any{marker("video", 0)}}},
+		{"comfyui:seedvr2-upscale", "/videos", map[string]any{"video_reference[]": []any{marker("video", 0)}, "resolution_name": "2k"}},
 	}
 	for _, test := range cases {
 		t.Run(test.model, func(t *testing.T) {
@@ -58,6 +58,16 @@ func TestComfyUILiveWorkflowConversion(t *testing.T) {
 			}
 			if kind == "" || payload["prompt"] == nil {
 				t.Fatalf("invalid prepared payload: %#v", payload)
+			}
+			if test.model == "comfyui:seedvr2-upscale" {
+				prompt, ok := payload["prompt"].(map[string]comfyUIAPINode)
+				if !ok {
+					t.Fatalf("unexpected prompt type: %T", payload["prompt"])
+				}
+				resize := prompt["66:57"].Inputs
+				if resize["resize_type"] != "scale longer dimension" || resize["longer_size"] != 2048 {
+					t.Fatalf("installed SeedVR2 video resolution mapping is invalid: %#v", resize)
+				}
 			}
 		})
 	}

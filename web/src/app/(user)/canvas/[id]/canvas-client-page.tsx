@@ -427,7 +427,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             onOk: async () => {
                 const accountToken = useUserStore.getState().token;
                 const remote = await loadDramaCanvasServerVersion(projectId);
-                const restored = await hydrateCanvasImages(remote.nodes);
+                const restored = enlargeLegacySuperResolutionNodes(await hydrateCanvasImages(remote.nodes));
                 if (useUserStore.getState().token !== accountToken) return;
                 nodesRef.current = restored;
                 connectionsRef.current = remote.connections;
@@ -696,7 +696,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         }
 
         const restore = async () => {
-            const restoredNodes = await hydrateCanvasImages(resetInterruptedGeneration(project.nodes));
+            const restoredNodes = enlargeLegacySuperResolutionNodes(await hydrateCanvasImages(resetInterruptedGeneration(project.nodes)));
             const restoredSessions = syncAssistantReferences(project.chatSessions || [], restoredNodes, true);
             setNodes(restoredNodes);
             setConnections(project.connections);
@@ -2878,21 +2878,24 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         (source: CanvasNodeData) => {
             const mode = source.type === CanvasNodeType.Video ? "video" : "image";
             const model = mode === "video" ? "comfyui:seedvr2-upscale" : "comfyui:seedvr2-image-upscale";
-            const spec = NODE_DEFAULT_SIZE[CanvasNodeType.Config];
             const id = nanoid();
             const node: CanvasNodeData = {
                 id,
                 type: CanvasNodeType.Config,
                 title: mode === "video" ? "高清视频" : "高清图片",
                 position: { x: source.position.x + source.width + 96, y: source.position.y },
-                width: spec.width,
-                height: spec.height,
+                width: 480,
+                height: 270,
                 metadata: {
                     processingMode: "super-resolution",
+                    upscaleLayoutVersion: 3,
                     generationMode: mode,
                     model,
                     channelId: mode === "video" ? effectiveConfig.videoChannelId : effectiveConfig.imageChannelId,
                     count: 1,
+                    quality: mode === "image" ? "medium" : undefined,
+                    vquality: mode === "video" ? "1080p" : undefined,
+                    size: "auto",
                     prompt: mode === "video" ? "视频高清修复与超分" : "图片高清修复与超分",
                 },
             };
@@ -6220,11 +6223,48 @@ async function hydrateCanvasImages(nodes: CanvasNodeData[]) {
             const content = node.metadata?.content;
             if ((node.type === CanvasNodeType.Video || node.type === CanvasNodeType.Audio) && node.metadata?.storageKey) return { ...node, metadata: { ...node.metadata, content: await resolveMediaUrl(node.metadata.storageKey, content) } };
             if (!isCanvasImageNodeType(node.type) || !content) return node;
-            if (node.metadata?.storageKey) return { ...node, metadata: { ...node.metadata, content: await resolveImageUrl(node.metadata.storageKey, content) } };
-            if (!content.startsWith("data:image/")) return node;
-            return { ...node, metadata: { ...node.metadata, ...imageMetadata(await uploadImage(content, { localOnly: true })) } };
+            let hydrated = node;
+            if (node.metadata?.storageKey) hydrated = { ...node, metadata: { ...node.metadata, content: await resolveImageUrl(node.metadata.storageKey, content) } };
+            else if (content.startsWith("data:image/")) hydrated = { ...node, metadata: { ...node.metadata, ...imageMetadata(await uploadImage(content, { localOnly: true })) } };
+            return repairGeneratedImageDimensions(hydrated);
         }),
     );
+}
+
+async function repairGeneratedImageDimensions(node: CanvasNodeData) {
+    const content = node.metadata?.content;
+    const generated = Boolean(node.metadata?.imageTaskId || node.metadata?.imageTaskResultId);
+    const dimensionsLookLikeNodeFallback = node.metadata?.naturalWidth === node.width && node.metadata?.naturalHeight === node.height;
+    if (!content || !generated || (node.metadata?.naturalWidth && node.metadata?.naturalHeight && !dimensionsLookLikeNodeFallback)) return node;
+    const dimensions = await loadCanvasImageDimensions(content);
+    if (!dimensions || (dimensions.width === node.metadata?.naturalWidth && dimensions.height === node.metadata?.naturalHeight)) return node;
+    const size = isPanoramaNodeType(node.type) ? PANORAMA_NODE_SIZE : fitNodeSize(dimensions.width, dimensions.height, NODE_DEFAULT_SIZE[CanvasNodeType.Image].width, NODE_DEFAULT_SIZE[CanvasNodeType.Image].height);
+    return {
+        ...node,
+        width: size.width,
+        height: size.height,
+        position: {
+            x: node.position.x + node.width / 2 - size.width / 2,
+            y: node.position.y + node.height / 2 - size.height / 2,
+        },
+        metadata: { ...node.metadata, naturalWidth: dimensions.width, naturalHeight: dimensions.height },
+    };
+}
+
+function loadCanvasImageDimensions(src: string) {
+    return new Promise<{ width: number; height: number } | null>((resolve) => {
+        const image = new Image();
+        const timeout = window.setTimeout(() => resolve(null), 10_000);
+        image.onload = () => {
+            window.clearTimeout(timeout);
+            resolve(image.naturalWidth > 0 && image.naturalHeight > 0 ? { width: image.naturalWidth, height: image.naturalHeight } : null);
+        };
+        image.onerror = () => {
+            window.clearTimeout(timeout);
+            resolve(null);
+        };
+        image.src = src;
+    });
 }
 
 function syncAssistantReferences(sessions: CanvasAssistantSession[], nodes: CanvasNodeData[], restoreInterrupted = false) {
@@ -6663,6 +6703,14 @@ function buildGenerationConfig(config: AiConfig, node: CanvasNodeData | undefine
 
 function resetInterruptedGeneration(nodes: CanvasNodeData[]) {
     return nodes.map((node) => (node.metadata?.status === "loading" && !canvasRecoverableTaskId(node) ? { ...node, metadata: { ...node.metadata, status: "error" as const, errorDetails: "页面刷新后生成已中断，请重新生成。" } } : node));
+}
+
+function enlargeLegacySuperResolutionNodes(nodes: CanvasNodeData[]) {
+    return nodes.map((node) =>
+        node.type === CanvasNodeType.Config && node.metadata?.processingMode === "super-resolution" && node.metadata.upscaleLayoutVersion !== 3
+            ? { ...node, width: 480, height: 270, metadata: { ...node.metadata, upscaleLayoutVersion: 3 } }
+            : node,
+    );
 }
 
 function canvasRecoverableTaskId(node: CanvasNodeData) {

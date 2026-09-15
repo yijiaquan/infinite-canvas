@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
@@ -290,6 +291,13 @@ func runCanvasImageTask(task model.CanvasImageTask, user model.AuthUser, body []
 	task.Bytes = bytes
 	task.Width = 0
 	task.Height = 0
+	if data, detectedMimeType, probeErr := imageCandidateBytes(task.ImageURL); probeErr == nil {
+		task.Width, task.Height = imageSize(data)
+		task.Bytes = int64(len(data))
+		if detectedMimeType != "" {
+			task.MimeType = detectedMimeType
+		}
+	}
 	task.Error = ""
 	task.ErrorDetail = ""
 	_, _ = service.SaveCanvasImageTask(task)
@@ -704,24 +712,26 @@ func collectImageCandidates(value any, depth int, includeChatImages bool) []stri
 }
 
 func imageCandidateBytes(value string) ([]byte, string, error) {
+	if strings.HasPrefix(value, "/api/ai/comfyui/view?") {
+		parsed, err := url.Parse(value)
+		if err != nil {
+			return nil, "", err
+		}
+		query := parsed.Query()
+		baseURL := query.Get("baseUrl")
+		query.Del("baseUrl")
+		response, err := service.ComfyUIProxyRequest(context.Background(), baseURL, http.MethodGet, "/view?"+query.Encode(), nil, "")
+		if err != nil {
+			return nil, "", err
+		}
+		return imageBytesFromHTTPResponse(response)
+	}
 	if strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://") {
 		response, err := http.Get(value)
 		if err != nil {
 			return nil, "", err
 		}
-		defer response.Body.Close()
-		if response.StatusCode < 200 || response.StatusCode >= 300 {
-			return nil, "", errors.New(response.Status)
-		}
-		data, err := io.ReadAll(io.LimitReader(response.Body, 32*1024*1024))
-		if err != nil {
-			return nil, "", err
-		}
-		mimeType := response.Header.Get("Content-Type")
-		if mimeType == "" {
-			mimeType = http.DetectContentType(data)
-		}
-		return data, strings.Split(mimeType, ";")[0], nil
+		return imageBytesFromHTTPResponse(response)
 	}
 	if strings.HasPrefix(value, "data:image/") {
 		parts := strings.SplitN(value, ",", 2)
@@ -737,6 +747,22 @@ func imageCandidateBytes(value string) ([]byte, string, error) {
 		return nil, "", err
 	}
 	return data, http.DetectContentType(data), nil
+}
+
+func imageBytesFromHTTPResponse(response *http.Response) ([]byte, string, error) {
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return nil, "", errors.New(response.Status)
+	}
+	data, err := io.ReadAll(io.LimitReader(response.Body, 32*1024*1024))
+	if err != nil {
+		return nil, "", err
+	}
+	mimeType := response.Header.Get("Content-Type")
+	if mimeType == "" {
+		mimeType = http.DetectContentType(data)
+	}
+	return data, strings.Split(mimeType, ";")[0], nil
 }
 
 func imageSize(data []byte) (int, int) {

@@ -66,11 +66,63 @@ func TestComfyUIImageUpscaleBindings(t *testing.T) {
 			"1":           {Inputs: map[string]any{"image": "old.png"}},
 			test.outputID: {Inputs: map[string]any{"filename_prefix": "old"}},
 		}
-		if err := patchComfyUIWorkflow(prompt, comfyUIProfile{ID: test.profileID}, map[string]any{"images": []string{"source.png"}}); err != nil {
+		if test.profileID == "comfyui:seedvr2-image-upscale" {
+			prompt["2"] = comfyUIAPINode{Inputs: map[string]any{"resize_type": "scale by multiplier", "multiplier": 2.0, "scale_method": "lanczos"}}
+		}
+		if err := patchComfyUIWorkflow(prompt, comfyUIProfile{ID: test.profileID}, map[string]any{"images": []string{"source.png"}, "quality": "high"}); err != nil {
 			t.Fatal(err)
 		}
 		if prompt["1"].Inputs["image"] != "source.png" || prompt[test.outputID].Inputs["filename_prefix"] == "old" {
 			t.Fatalf("%s bindings were not patched: %#v", test.profileID, prompt)
 		}
+		if test.profileID == "comfyui:seedvr2-image-upscale" {
+			if prompt["2"].Inputs["resize_type"] != "scale longer dimension" || prompt["2"].Inputs["longer_size"] != 3840 {
+				t.Fatalf("SeedVR2 4K resolution was not patched: %#v", prompt["2"].Inputs)
+			}
+		} else {
+			if prompt["99001"].Inputs["longer_size"] != 3840 || prompt["4"].Inputs["images"].([]any)[0] != "99001" {
+				t.Fatalf("VOSR2 4K output resize was not patched: %#v", prompt)
+			}
+		}
+	}
+}
+
+func TestComfyUIImageUpscaleDefaultsTo2K(t *testing.T) {
+	if got := comfyUIImageUpscaleLongEdge(map[string]any{"quality": "medium"}); got != 2048 {
+		t.Fatalf("2K long edge = %d, want 2048", got)
+	}
+}
+
+func TestComfyUIVideoUpscaleBindings(t *testing.T) {
+	for _, test := range []struct {
+		resolution string
+		longEdge   int
+	}{
+		{"720p", 1280},
+		{"1080p", 1920},
+		{"2K", 2048},
+	} {
+		prompt := map[string]comfyUIAPINode{
+			"66:57": {Inputs: map[string]any{"resize_type": "scale by multiplier", "multiplier": 1.2, "scale_method": "nearest-exact"}},
+			"73":    {Inputs: map[string]any{"file": "old.mp4"}},
+			"76":    {Inputs: map[string]any{"filename_prefix": "old"}},
+		}
+		input := map[string]any{"videos": []string{"source.mp4"}, "resolution_name": test.resolution}
+		if err := patchComfyUIWorkflow(prompt, comfyUIProfile{ID: "comfyui:seedvr2-upscale"}, input); err != nil {
+			t.Fatal(err)
+		}
+		resize := prompt["66:57"].Inputs
+		if resize["resize_type"] != "scale longer dimension" || resize["longer_size"] != test.longEdge || resize["scale_method"] != "lanczos" {
+			t.Fatalf("%s resolution was not patched: %#v", test.resolution, resize)
+		}
+		if _, ok := resize["multiplier"]; ok {
+			t.Fatalf("%s retained multiplier: %#v", test.resolution, resize)
+		}
+	}
+}
+
+func TestComfyUIVideoUpscaleDefaultsTo720P(t *testing.T) {
+	if got := comfyUIVideoUpscaleLongEdge(map[string]any{}); got != 1280 {
+		t.Fatalf("default video long edge = %d, want 1280", got)
 	}
 }

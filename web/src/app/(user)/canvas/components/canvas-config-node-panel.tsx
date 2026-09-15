@@ -40,12 +40,15 @@ export function CanvasConfigNodePanel({ node, isRunning, inputSummary, videoFram
     const chipStyle = { background: theme.node.fill, borderColor: theme.node.stroke, color: theme.node.text };
     const hasAnyInput = Boolean(inputSummary.textCount || inputSummary.imageCount || inputSummary.videoCount || inputSummary.audioCount);
     const hasComposerContent = Boolean((node.metadata?.composerContent ?? node.metadata?.prompt ?? "").trim());
-    const canGenerate = hasComposerContent || (mode === "audio" ? inputSummary.textCount > 0 : hasAnyInput);
+    const upscaleInputCount = mode === "video" ? inputSummary.videoCount : inputSummary.imageCount;
+    const upscaleInputLabel = mode === "video" ? "输入视频" : "输入图片";
+    const upscaleInputUnit = mode === "video" ? "个" : "张";
+    const canGenerate = isSuperResolution ? upscaleInputCount === 1 : hasComposerContent || (mode === "audio" ? inputSummary.textCount > 0 : hasAnyInput);
 
     return (
-        <div className="flex h-full w-full cursor-move flex-col px-3 pb-3 pt-7 text-sm" style={{ color: theme.node.text }} onWheel={(event) => event.stopPropagation()}>
+        <div className={`flex h-full w-full cursor-move flex-col ${isSuperResolution ? "px-4 pb-3 pt-6 text-[15px]" : "px-3 pb-3 pt-7 text-sm"}`} style={{ color: theme.node.text }} onWheel={(event) => event.stopPropagation()}>
             <div className="mb-2 flex items-center justify-between gap-3">
-                <div className="shrink-0 text-sm font-semibold">{isSuperResolution ? "高清处理" : "生成配置"}</div>
+                <div className={`shrink-0 font-semibold ${isSuperResolution ? "text-base" : "text-sm"}`}>{isSuperResolution ? "高清处理" : "生成配置"}</div>
                 {!isSuperResolution ? <div className="cursor-default" onMouseDown={(event) => event.stopPropagation()}>
                     <Segmented
                         size="small"
@@ -94,34 +97,60 @@ export function CanvasConfigNodePanel({ node, isRunning, inputSummary, videoFram
                 </div> : null}
             </div>
 
-            <div className="mb-2 flex flex-wrap gap-1.5">
-                <InputChip label="提示词" value={`${inputSummary.textCount} 个`} style={chipStyle} />
-                <InputChip label="参考图" value={`${inputSummary.imageCount} 张`} style={chipStyle} />
-                <InputChip label="参考视频" value={`${inputSummary.videoCount} 个`} style={chipStyle} />
-                <InputChip label="参考音频" value={`${inputSummary.audioCount} 个`} style={chipStyle} />
-                <button type="button" className="inline-flex h-7 cursor-pointer items-center gap-1 rounded-md border px-2 text-[11px]" style={chipStyle} onMouseDown={(event) => event.stopPropagation()} onClick={onComposerToggle}>
+            {isSuperResolution ? (
+                <div className="mb-2 flex h-9 items-center justify-between rounded-md border px-3 text-[13px]" style={chipStyle}>
+                    <span className="inline-flex items-center gap-2 font-medium">
+                        {mode === "video" ? <Video className="size-4" /> : <ImageIcon className="size-4" />}
+                        {upscaleInputLabel}
+                    </span>
+                    <span className={upscaleInputCount === 1 ? "font-semibold" : "opacity-60"}>
+                        {upscaleInputCount === 1 ? `已连接 1 ${upscaleInputUnit}` : `请连接 1 ${upscaleInputUnit}`}
+                    </span>
+                </div>
+            ) : <div className="mb-2 flex flex-wrap gap-1.5">
+                <InputChip label="提示词" value={`${inputSummary.textCount} 个`} style={chipStyle} large={isSuperResolution} />
+                <InputChip label="参考图" value={`${inputSummary.imageCount} 张`} style={chipStyle} large={isSuperResolution} />
+                <InputChip label="参考视频" value={`${inputSummary.videoCount} 个`} style={chipStyle} large={isSuperResolution} />
+                <InputChip label="参考音频" value={`${inputSummary.audioCount} 个`} style={chipStyle} large={isSuperResolution} />
+                <button type="button" className={`inline-flex cursor-pointer items-center gap-1 rounded-md border px-2 ${isSuperResolution ? "h-8 text-[13px]" : "h-7 text-[11px]"}`} style={chipStyle} onMouseDown={(event) => event.stopPropagation()} onClick={onComposerToggle}>
                     <Settings2 className="size-3.5" />
                     组装提示词
                 </button>
-            </div>
+            </div>}
 
-            <div className={`mb-2 grid min-w-0 cursor-default items-center gap-2 ${mode === "image" || mode === "video" ? "grid-cols-[minmax(0,1fr)_148px_92px]" : mode === "audio" ? "grid-cols-[minmax(0,1fr)_148px]" : "grid-cols-1"}`} onMouseDown={(event) => event.stopPropagation()}>
-                <ModelPicker className="canvas-compact-control h-10" config={config} value={config.model} channelId={modelChannelId(config, mode)} onChange={(model, channelId) => onConfigChange(node.id, { model, channelId })} capability={mode} modelScope={isSuperResolution ? "upscale" : "generation"} onMissingConfig={() => openConfigDialog(true)} fullWidth />
-                {mode === "video" ? (
+            <div className={`mb-2 grid min-w-0 cursor-default items-center gap-2 ${(mode === "image" || mode === "video") && isSuperResolution ? "grid-cols-1" : mode === "image" || mode === "video" ? "grid-cols-[minmax(0,1fr)_148px_92px]" : mode === "audio" ? "grid-cols-[minmax(0,1fr)_148px]" : "grid-cols-1"}`} onMouseDown={(event) => event.stopPropagation()}>
+                <ModelPicker className={`canvas-compact-control ${isSuperResolution ? "canvas-upscale-control h-11" : "h-10"}`} config={config} value={config.model} channelId={modelChannelId(config, mode)} onChange={(model, channelId) => onConfigChange(node.id, { model, channelId })} capability={mode} modelScope={isSuperResolution ? "upscale" : "generation"} onMissingConfig={() => openConfigDialog(true)} fullWidth />
+                {mode === "video" ? isSuperResolution ? (
+                    <Segmented
+                        className="canvas-compact-control canvas-upscale-control !h-11 !w-full !rounded-lg !p-1"
+                        value={["720p", "1080p", "2k"].includes(config.vquality.toLowerCase()) ? config.vquality.toLowerCase() : "1080p"}
+                        options={[{ value: "720p", label: "720p" }, { value: "1080p", label: "1080p" }, { value: "2k", label: "2K" }]}
+                        onChange={(vquality) => onConfigChange(node.id, { vquality: String(vquality), size: "auto" })}
+                        block
+                    />
+                ) : (
                     <CanvasVideoSettingsPopover config={config} placement="topRight" buttonClassName="canvas-compact-control !h-10 !w-full !justify-start !rounded-lg !px-2" frameOptions={videoFrameOptions} resourceOptions={videoResourceOptions} metadata={node.metadata} firstFrameNodeId={node.metadata?.firstFrameNodeId} lastFrameNodeId={node.metadata?.lastFrameNodeId} onFrameChange={(patch) => onConfigChange(node.id, patch)} onMetadataChange={(patch) => onConfigChange(node.id, patch)} onConfigChange={(key, value) => onConfigChange(node.id, videoConfigPatch(key, value))} />
-                ) : mode === "image" ? (
+                ) : mode === "image" ? isSuperResolution ? (
+                    <Segmented
+                        className="canvas-compact-control canvas-upscale-control !h-11 !w-full !rounded-lg !p-1"
+                        value={config.quality === "high" ? "high" : "medium"}
+                        options={[{ value: "medium", label: "保持原比例 · 2K" }, { value: "high", label: "保持原比例 · 4K" }]}
+                        onChange={(quality) => onConfigChange(node.id, { quality: String(quality), size: "auto", count: 1 })}
+                        block
+                    />
+                ) : (
                     <CanvasImageSettingsPopover config={config} placement="topRight" autoAdjustOverflow={false} buttonClassName="canvas-compact-control !h-10 !w-full !justify-start !rounded-lg !px-2" onConfigChange={(key, value) => onConfigChange(node.id, key === "count" ? { count: Number(value) || 1 } : { [key]: value })} />
                 ) : mode === "audio" ? (
                     <CanvasAudioSettingsPopover config={config} resourceOptions={videoResourceOptions} metadata={node.metadata} onMetadataChange={(patch) => onConfigChange(node.id, patch)} placement="topRight" buttonClassName="canvas-compact-control !h-10 !w-full !justify-start !rounded-lg !px-2" onConfigChange={(key, value) => onConfigChange(node.id, audioConfigPatch(key, value))} />
                 ) : null}
-                {mode === "image" || mode === "video" ? (
+                {((mode === "image" || mode === "video") && !isSuperResolution) ? (
                     <CanvasCameraControl value={node.metadata?.cameraControl} onChange={(cameraControl) => onConfigChange(node.id, { cameraControl })} buttonClassName="canvas-compact-control !h-10 !w-full !justify-start !rounded-lg !px-2" />
                 ) : null}
             </div>
 
             <Button
                 type="primary"
-                className="mt-auto !h-9 !w-full !cursor-pointer !rounded-lg"
+                className={`mt-auto !w-full !cursor-pointer !rounded-lg ${isSuperResolution ? "!h-11 !text-sm" : "!h-9"}`}
                 disabled={isRunning || !canGenerate}
                 onMouseDown={(event) => event.stopPropagation()}
                 onClick={() => onGenerate(node.id)}
@@ -139,9 +168,9 @@ export function CanvasConfigNodePanel({ node, isRunning, inputSummary, videoFram
     );
 }
 
-function InputChip({ label, value, style }: { label: string; value: string; style: CSSProperties }) {
+function InputChip({ label, value, style, large = false }: { label: string; value: string; style: CSSProperties; large?: boolean }) {
     return (
-        <div className="inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[11px]" style={style}>
+        <div className={`inline-flex items-center gap-1 rounded-md border px-2 ${large ? "h-8 text-[13px]" : "h-7 text-[11px]"}`} style={style}>
             <span>{label}</span>
             <span className="font-medium">{value}</span>
         </div>

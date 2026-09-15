@@ -626,6 +626,7 @@ func patchComfyUIWorkflow(prompt map[string]comfyUIAPINode, profile comfyUIProfi
 			return errors.New("SeedVR2 图片超分工作流仅支持连接一张原图")
 		}
 		setComfyUIInput(prompt, "1", "image", images[0])
+		patchComfyUIImageUpscaleResolution(prompt, "2", input)
 		setComfyUIInput(prompt, "11", "filename_prefix", prefix)
 	case "comfyui:vosr2-image-upscale":
 		images := firstStrings(input["image"], input["images"])
@@ -633,6 +634,18 @@ func patchComfyUIWorkflow(prompt map[string]comfyUIAPINode, profile comfyUIProfi
 			return errors.New("VOSR 2.0 图片超分工作流仅支持连接一张原图")
 		}
 		setComfyUIInput(prompt, "1", "image", images[0])
+		setComfyUIInput(prompt, "3", "upscale", 4)
+		prompt["99001"] = comfyUIAPINode{
+			ClassType: "ResizeImageMaskNode",
+			Inputs: map[string]any{
+				"input":        []any{"3", 0},
+				"resize_type":  "scale longer dimension",
+				"longer_size":  comfyUIImageUpscaleLongEdge(input),
+				"scale_method": "lanczos",
+			},
+			Meta: map[string]string{"title": "无限画布原比例输出尺寸"},
+		}
+		setComfyUIInput(prompt, "4", "images", []any{"99001", 0})
 		setComfyUIInput(prompt, "4", "filename_prefix", prefix)
 	case "comfyui:seedvr2-upscale":
 		videos := firstStrings(input["video_reference[]"], input["videos"])
@@ -640,9 +653,47 @@ func patchComfyUIWorkflow(prompt map[string]comfyUIAPINode, profile comfyUIProfi
 			return errors.New("SeedVR2 视频超分工作流仅支持连接一个参考视频")
 		}
 		setComfyUIInput(prompt, "73", "file", videos[0])
+		patchComfyUIVideoUpscaleResolution(prompt, "66:57", input)
 		setComfyUIInput(prompt, "76", "filename_prefix", prefix)
 	}
 	return nil
+}
+
+func patchComfyUIVideoUpscaleResolution(prompt map[string]comfyUIAPINode, id string, input map[string]any) {
+	setComfyUIInput(prompt, id, "resize_type", "scale longer dimension")
+	setComfyUIInput(prompt, id, "longer_size", comfyUIVideoUpscaleLongEdge(input))
+	setComfyUIInput(prompt, id, "scale_method", "lanczos")
+	node := prompt[id]
+	delete(node.Inputs, "multiplier")
+	prompt[id] = node
+}
+
+func comfyUIVideoUpscaleLongEdge(input map[string]any) int {
+	value := strings.ToLower(comfyUIFirstString(input["resolution_name"], input["quality"], input["size"]))
+	if strings.Contains(value, "2k") {
+		return 2048
+	}
+	if strings.Contains(value, "1080") {
+		return 1920
+	}
+	return 1280
+}
+
+func patchComfyUIImageUpscaleResolution(prompt map[string]comfyUIAPINode, id string, input map[string]any) {
+	setComfyUIInput(prompt, id, "resize_type", "scale longer dimension")
+	setComfyUIInput(prompt, id, "longer_size", comfyUIImageUpscaleLongEdge(input))
+	setComfyUIInput(prompt, id, "scale_method", "lanczos")
+	node := prompt[id]
+	delete(node.Inputs, "multiplier")
+	prompt[id] = node
+}
+
+func comfyUIImageUpscaleLongEdge(input map[string]any) int {
+	value := strings.ToLower(comfyUIFirstString(input["quality"], input["resolution_name"], input["size"]))
+	if strings.Contains(value, "4k") || value == "high" {
+		return 3840
+	}
+	return 2048
 }
 
 func patchComfyUIOptionalGenerationInputs(prompt map[string]comfyUIAPINode, profileID string, input map[string]any) error {

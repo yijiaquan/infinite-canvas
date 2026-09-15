@@ -34,6 +34,7 @@ export type CameraControlOptions = {
 
 export type CanvasNodeMetadata = {
     processingMode?: "super-resolution";
+    upscaleLayoutVersion?: number;
     dramaClipId?: string;
     dramaAssetId?: string;
     dramaRole?: "group" | "storyboard" | "video" | "reference";
