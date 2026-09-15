@@ -14,12 +14,24 @@ export function applyDramaBindingNodes(nodes: CanvasNodeData[], connections: Can
         const speakerKey = input.role === "voice" ? input.speaker || "" : "";
         const isVoice = input.role === "voice";
         const sharedId = isVoice ? `drama:${encodeURIComponent(target.metadata!.dramaClipId!)}:reference:${encodeURIComponent(versionId)}:${encodeURIComponent(speakerKey)}` : `drama:reference:${encodeURIComponent(versionId)}`;
+        const registeredStorageKey = `server:${input.storageId}`;
+        const sourceNode = isVoice
+            ? undefined
+            : nodes.find(
+                  (node) =>
+                      node.id !== targetId &&
+                      node.metadata?.dramaAssetId === input.assetId &&
+                      node.metadata?.storageKey === registeredStorageKey &&
+                      node.metadata?.dramaRole !== "storyboard" &&
+                      node.metadata?.dramaRole !== "video" &&
+                      node.metadata?.dramaRole !== "group",
+              );
         const reusable = nodes.filter(
             (node) =>
                 node.metadata?.dramaRole === "reference" && node.metadata?.dramaAssetVersionId === input.versionId && (!isVoice || (node.metadata?.dramaClipId === target.metadata!.dramaClipId && node.id.endsWith(`:${encodeURIComponent(speakerKey)}`))),
         );
         const ownedLegacy = reusable.find((node) => node.metadata?.dramaBindingTarget === targetId);
-        const existing = nodes.find((node) => node.id === sharedId) || ownedLegacy || reusable[0];
+        const existing = sourceNode || nodes.find((node) => node.id === sharedId) || ownedLegacy || reusable[0];
         const id = existing?.id || sharedId;
         if (plannedIds.has(id)) throw new Error("输入绑定重复，请检查素材版本、用途和说话者");
         plannedIds.add(id);
@@ -27,7 +39,9 @@ export function applyDramaBindingNodes(nodes: CanvasNodeData[], connections: Can
         const matches = nodes.filter((node) => node.id === id);
         if (
             matches.length > 1 ||
-            (existing && (existing.type !== type || existing.metadata?.dramaRole !== "reference" || existing.metadata?.dramaAssetVersionId !== input.versionId || (isVoice && existing.metadata?.dramaClipId !== target.metadata!.dramaClipId)))
+            (existing &&
+                (existing.type !== type ||
+                    (existing !== sourceNode && (existing.metadata?.dramaRole !== "reference" || existing.metadata?.dramaAssetVersionId !== input.versionId || (isVoice && existing.metadata?.dramaClipId !== target.metadata!.dramaClipId)))))
         ) {
             throw new Error("绑定节点 ID 已被其他内容占用，请先修复画布");
         }
@@ -42,12 +56,12 @@ export function applyDramaBindingNodes(nodes: CanvasNodeData[], connections: Can
         };
         const edges = connections.filter((edge) => edge.id === connection.id);
         if (edges.length > 1 || edges.some((edge) => edge.fromNodeId !== id || edge.toNodeId !== targetId)) throw new Error("绑定连线 ID 已被其他连接占用，请先修复画布");
-        return { input, id, type, existing, connection };
+        return { input, id, type, existing, sourceNode, connection };
     });
     let nextNodes = [...nodes];
     const oldInputIds = new Set(nodes.filter((node) => node.metadata?.dramaBindingTarget === targetId).map((node) => node.id));
     const nextEdges = connections.filter((edge) => !(edge.toNodeId === targetId && ((edge.id === `${edge.fromNodeId}:binding` && oldInputIds.has(edge.fromNodeId)) || edge.dramaAssetVersionId)));
-    for (const { input, id, type, existing, connection } of plan) {
+    for (const { input, id, type, existing, sourceNode, connection } of plan) {
         if (!existing) {
             const position = { x: target.position.x, y: target.position.y + target.height + 60 + input.order * 190 };
             const overlaps = () =>
@@ -77,8 +91,15 @@ export function applyDramaBindingNodes(nodes: CanvasNodeData[], connections: Can
                 const { dramaClipId: _dramaClipId, groupId: _groupId, ...metadata } = node.metadata || {};
                 return { ...node, metadata };
             });
+        } else if (existing === sourceNode && existing.metadata?.dramaAssetVersionId !== input.versionId) {
+            nextNodes = nextNodes.map((node) => (node.id === existing.id ? { ...node, metadata: { ...node.metadata, dramaAssetVersionId: input.versionId } } : node));
         }
         nextEdges.push(connection);
+    }
+    const directlyBoundVersionIds = new Set(plan.filter((item) => item.sourceNode).map((item) => item.input.versionId));
+    if (directlyBoundVersionIds.size) {
+        const connectedNodeIds = new Set(nextEdges.flatMap((edge) => [edge.fromNodeId, edge.toNodeId]));
+        nextNodes = nextNodes.filter((node) => !(node.id.startsWith("drama:reference:") && node.metadata?.dramaRole === "reference" && directlyBoundVersionIds.has(node.metadata.dramaAssetVersionId || "") && !connectedNodeIds.has(node.id)));
     }
     return { nodes: nextNodes, connections: nextEdges };
 }

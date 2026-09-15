@@ -16,6 +16,19 @@ test("drama edits preserve exact content and do not become media actions", () =>
     assert.equal(isCanvasAgentMediaAction(normalizeCanvasAgentAction("enqueue_drama_run", { clipId: "clip", nodeId: "node", requestId: "once" })), true);
 });
 
+test("upscale tools normalize safe defaults and reject unsupported resolutions", () => {
+    const image = normalizeCanvasAgentAction("upscale_image", { sourceNodeId: "image-source" });
+    assert.deepEqual(image.arguments, { sourceNodeId: "image-source", resolution: "2k", model: "vosr2" });
+    assert.equal(isCanvasAgentMediaAction(image), true);
+
+    const video = normalizeCanvasAgentAction("upscale_video", { sourceNodeId: "video-source" });
+    assert.deepEqual(video.arguments, { sourceNodeId: "video-source", resolution: "1080p" });
+    assert.equal(isCanvasAgentMediaAction(video), true);
+
+    assert.throws(() => normalizeCanvasAgentAction("upscale_image", { sourceNodeId: "image-source", resolution: "8k" }));
+    assert.throws(() => normalizeCanvasAgentAction("upscale_video", { sourceNodeId: "video-source", resolution: "4k" }));
+});
+
 test("formal drama tools reject raw storage, duplicate order and hidden generation parameters", () => {
     assert.deepEqual(normalizeCanvasAgentAction("get_media_content", { nodeId: "media-node" }).arguments, { nodeId: "media-node" });
     assert.throws(() => normalizeCanvasAgentAction("get_media_content", { nodeId: "media-node", url: "https://example.com/private" }));
@@ -30,6 +43,37 @@ test("formal drama tools reject raw storage, duplicate order and hidden generati
                 { assetId: "b", versionId: "v2", role: "scene", order: 0, speaker: "" },
             ],
         }),
+    );
+    assert.throws(() =>
+        normalizeCanvasAgentAction("update_drama_binding", {
+            clipId: "clip",
+            stage: "storyboard",
+            expectedRevision: 0,
+            references: [{ assetId: "a", versionId: "v1", role: "character_identity", order: 0, speaker: "" }],
+        }),
+    );
+    assert.throws(() =>
+        normalizeCanvasAgentAction("update_drama_binding", {
+            clipId: "clip",
+            stage: "storyboard",
+            expectedRevision: 0,
+            references: [{ assetId: "a", versionId: "v1", role: "character", order: 1, speaker: "" }],
+        }),
+    );
+    assert.deepEqual(
+        normalizeCanvasAgentAction("update_drama_binding", {
+            clipId: "clip",
+            stage: "storyboard",
+            expectedRevision: 0,
+            references: [
+                { assetId: "a", versionId: "v1", role: "character", order: 0, speaker: "" },
+                { assetId: "b", versionId: "v2", role: "reference", order: 1, speaker: "" },
+            ],
+        }).arguments.references,
+        [
+            { assetId: "a", versionId: "v1", role: "character", order: 0, speaker: "" },
+            { assetId: "b", versionId: "v2", role: "reference", order: 1, speaker: "" },
+        ],
     );
     assert.throws(() => normalizeCanvasAgentAction("update_drama_generation_node", { clipId: "clip", nodeId: "node", stage: "video", prompt: "x", parameters: { hidden_node: true } }));
     assert.throws(() => normalizeCanvasAgentAction("update_drama_generation_node", { clipId: "clip", nodeId: "node", stage: "video", prompt: "x", parameters: { steps: true } }));
@@ -48,10 +92,7 @@ test("formal drama tools reject raw storage, duplicate order and hidden generati
 });
 
 test("drama nodes persist the same effective parameters used for a run", () => {
-    const parameters = resolveDramaNodeParameters(
-        { seconds: 6, resolution_name: "720p", steps: 20 },
-        { seconds: "8", size: "16:9", dramaParameters: { seconds: 10, resolution_name: "480p" } },
-    );
+    const parameters = resolveDramaNodeParameters({ seconds: 6, resolution_name: "720p", steps: 20 }, { seconds: "8", size: "16:9", dramaParameters: { seconds: 10, resolution_name: "480p" } });
     assert.deepEqual(parameters, { seconds: 10, resolution_name: "480p", steps: 20, size: "16:9" });
     assert.deepEqual(persistDramaNodeParameters({}, parameters), {
         dramaParameters: parameters,
@@ -173,10 +214,18 @@ test("auto generation records the returned run on its canvas node", async () => 
     let recorded: [string, string] | undefined;
     try {
         const result = await executeDramaAgentAction(normalizeCanvasAgentAction("enqueue_drama_run", { clipId: "clip", nodeId: "node", requestId: "stable-request" }), {
-            token: "token", projectId: "project", episodeId: "episode", canvasId: "canvas", autoGenerateMedia: true,
-            isCurrent: () => true, onChanged: () => undefined, readAssets: async () => ({ assets: [], versions: [] }),
+            token: "token",
+            projectId: "project",
+            episodeId: "episode",
+            canvasId: "canvas",
+            autoGenerateMedia: true,
+            isCurrent: () => true,
+            onChanged: () => undefined,
+            readAssets: async () => ({ assets: [], versions: [] }),
             buildRunInput: async () => ({ input: { requestId: "stable-request", nodeId: "node", kind: "image", model: "m", channelId: "c", prompt: "p", parameters: {}, references: [] } }),
-            onRunEnqueued: async (nodeId, run) => { recorded = [nodeId, run.id]; },
+            onRunEnqueued: async (nodeId, run) => {
+                recorded = [nodeId, run.id];
+            },
         });
         assert.equal((result?.data as { submitted: boolean }).submitted, true);
         assert.deepEqual(recorded, ["node", "run-1"]);
@@ -200,7 +249,24 @@ test("asset version resolves owned node storage and adoption uses completed run 
         const data = url.endsWith("/clips")
             ? [clip]
             : url.endsWith("/runs")
-              ? [{ id: "run", clipId: "clip", nodeId: "video", kind: "video", status: "completed", upstreamId: "", createdAt: "", updatedAt: "", error: "", snapshot: {}, outputs: [{ storageId: "first" }, { storageId: "chosen" }] }]
+              ? [
+                    {
+                        id: "run",
+                        clipId: "clip",
+                        nodeId: "video",
+                        kind: "video",
+                        status: "completed",
+                        upstreamId: "",
+                        createdAt: "",
+                        updatedAt: "",
+                        error: "",
+                        snapshot: {},
+                        outputs: [
+                            { storageId: "first", url: "/first", mimeType: "video/mp4" },
+                            { storageId: "chosen", url: "/chosen", mimeType: "video/mp4" },
+                        ],
+                    },
+                ]
               : detail;
         return { status: 200, statusText: "OK", headers: {}, config, data: { code: 0, data } };
     };
@@ -220,8 +286,17 @@ test("asset version resolves owned node storage and adoption uses completed run 
             true,
         );
         assert.deepEqual(resolved, ["asset", "candidate"]);
-        assert.equal((await executeDramaAgentAction(normalizeCanvasAgentAction("adopt_drama_output", { clipId: "clip", runId: "run", outputIndex: 1, expectedRevision: 0, clipRevision: 3 }), base))?.ok, true);
+        let projected: unknown;
+        const adoption = await executeDramaAgentAction(normalizeCanvasAgentAction("adopt_drama_output", { clipId: "clip", runId: "run", outputIndex: 1, expectedRevision: 0, clipRevision: 3 }), {
+            ...base,
+            onOutputAdopted: async (input) => {
+                projected = input;
+                return { nodeId: input.nodeId, storageId: input.output.storageId };
+            },
+        });
+        assert.equal(adoption?.ok, true);
         assert.equal(posts.find((item) => item.url.endsWith("/adoption"))?.data.storageId, "chosen");
+        assert.deepEqual(projected, { clipId: "clip", nodeId: "video", kind: "video", runId: "run", output: { storageId: "chosen", url: "/chosen", mimeType: "video/mp4" } });
     } finally {
         axios.defaults.adapter = adapter;
     }
@@ -233,13 +308,25 @@ test("generation node rejects provider media tags in source prompts", async () =
     const clip = { id: "clip", projectId: "project", episodeId: "episode", title: "C", scene: "", summary: "", entryState: "", exitState: "", shots: [], archived: false, position: 0, revision: 1, createdAt: "", updatedAt: "" };
     axios.defaults.adapter = async (config) => ({ status: 200, statusText: "OK", headers: {}, config, data: { code: 0, data: String(config.url).endsWith("/clips") ? [clip] : detail } });
     try {
-        const result = await executeDramaAgentAction(normalizeCanvasAgentAction("update_drama_generation_node", {
-            clipId: "clip", nodeId: "node", stage: "video", prompt: "<Picture 1> is the storyboard", parameters: {},
-        }), {
-            token: "token", projectId: "project", episodeId: "episode", canvasId: "canvas",
-            isCurrent: () => true, onChanged: () => undefined, readAssets: async () => ({ assets: [], versions: [] }),
-            updateGenerationNode: async () => ({ updated: true }),
-        });
+        const result = await executeDramaAgentAction(
+            normalizeCanvasAgentAction("update_drama_generation_node", {
+                clipId: "clip",
+                nodeId: "node",
+                stage: "video",
+                prompt: "<Picture 1> is the storyboard",
+                parameters: {},
+            }),
+            {
+                token: "token",
+                projectId: "project",
+                episodeId: "episode",
+                canvasId: "canvas",
+                isCurrent: () => true,
+                onChanged: () => undefined,
+                readAssets: async () => ({ assets: [], versions: [] }),
+                updateGenerationNode: async () => ({ updated: true }),
+            },
+        );
         assert.equal(result?.ok, false);
         assert.match(result?.message || "", /源提示词不能包含提供方媒体标签/);
     } finally {

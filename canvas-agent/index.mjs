@@ -29,10 +29,16 @@ const origins = new Set(process.env.CANVAS_AGENT_ORIGINS?.split(",").map((value)
 const sessions = new Map();
 const SESSION_DISCONNECT_GRACE_MS = 60_000;
 const sessionRegistry = new SessionRegistry(sessions, {
-    onSwitch(previous) {
+    onSwitch(previous, next) {
         for (const pending of previous.toolsPending.values()) {
-            if (pending.source === "external") pending.cancel("已切换到其他画布，工具请求已取消");
+            pending.cancel("已切换到其他画布，工具请求已取消");
         }
+        // A refreshed page receives a new clientId. Release the previous Codex
+        // app-server immediately so resuming the same thread cannot collide
+        // with its stale single-writer lease during the disconnect grace period.
+        previous.codexGeneration += 1;
+        next.writerRelease = previous.codex?.close(new Error("已切换到其他画布"));
+        previous.codex = undefined;
     },
 });
 const methods = new Set(["model/list", "thread/start", "thread/resume", "thread/archive", "turn/start", "turn/interrupt", "bridge/stop"]);
@@ -112,9 +118,14 @@ async function runRpc(session, method, params = {}, generation) {
     if (!Number.isSafeInteger(generation) || generation < session.codexGeneration) throw new Error("Codex 请求已停止");
     if (generation > session.codexGeneration) {
         session.codexGeneration = generation;
-        session.codex?.close();
+        session.writerRelease = session.codex?.close();
+        session.codex = undefined;
     }
     if (method === "bridge/stop") return { ok: true };
+    if (session.writerRelease) {
+        await session.writerRelease;
+        session.writerRelease = undefined;
+    }
     if (!session.codex || session.codex.stopped) session.codex = new CodexClient((event, data) => {
         if (data.method === "bridge/disconnected") {
             if (generation === session.codexGeneration) session.codexGeneration += 1;

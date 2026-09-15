@@ -51,6 +51,7 @@ export type DramaAgentContext = {
     applyBinding?: (binding: DramaBinding, catalog: DramaAssetCatalog) => Promise<unknown>;
     buildRunInput?: (clipId: string, nodeId: string, requestId?: string) => Promise<{ input: DramaRunInput; boardUpdated?: boolean }>;
     onRunEnqueued?: (nodeId: string, run: DramaRun) => Promise<void>;
+    onOutputAdopted?: (input: { clipId: string; nodeId: string; kind: "image" | "video"; runId: string; output: DramaRun["outputs"][number] }) => Promise<unknown>;
     generateAssetCandidate?: (input: { assetId: string; kind: "image" | "audio"; prompt: string; title?: string; sourceNodeIds: string[]; voice?: string; instructions?: string }) => Promise<unknown>;
 };
 
@@ -273,7 +274,9 @@ export async function executeDramaAgentAction(action: CanvasAgentAction, context
                 if (!run || run.status !== "completed") throw new Error("运行不存在或尚未成功完成");
                 const output = run.outputs[args.outputIndex as number];
                 if (!output?.storageId) throw new Error("输出序号不存在");
-                data = await adoptDramaOutput(token, projectId, episodeId, clip.id, { runId: run.id, storageId: output.storageId, expectedRevision: args.expectedRevision as number, clipRevision: clip.revision });
+                const adoption = await adoptDramaOutput(token, projectId, episodeId, clip.id, { runId: run.id, storageId: output.storageId, expectedRevision: args.expectedRevision as number, clipRevision: clip.revision });
+                const projection = await requiredCallback(context.onOutputAdopted, "采用节点同步")({ clipId: clip.id, nodeId: run.nodeId, kind: run.kind, runId: run.id, output });
+                data = { adoption, projection };
                 changed = true;
                 break;
             }

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Compass, Focus, HelpCircle, LayoutGrid } from "lucide-react";
+import { Compass, Focus, HelpCircle, LayoutGrid, Workflow } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button, Modal, Popover, Tooltip } from "antd";
 
@@ -13,12 +13,14 @@ type CanvasZoomControlsProps = {
     isMiniMapOpen: boolean;
     onToggleMiniMap: () => void;
     onOrganize: () => void;
+    connectionsHidden: boolean;
+    onToggleConnections: () => void;
     onKeepOrganize: () => void;
     onRestoreOrganize: () => void;
     organizePending: boolean;
 };
 
-export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpen, onToggleMiniMap, onOrganize, onKeepOrganize, onRestoreOrganize, organizePending }: CanvasZoomControlsProps) {
+export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpen, onToggleMiniMap, onOrganize, connectionsHidden, onToggleConnections, onKeepOrganize, onRestoreOrganize, organizePending }: CanvasZoomControlsProps) {
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
     const colorTheme = useThemeStore((state) => state.theme);
     const theme = canvasThemes[colorTheme];
@@ -74,6 +76,17 @@ export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpe
                         />
                     </Tooltip>
                 </Popover>
+                <Tooltip title={connectionsHidden ? "显示节点连线" : "隐藏节点连线"}>
+                    <Button
+                        type="text"
+                        className="!h-8 !w-8 !min-w-8 !p-0"
+                        style={connectionsHidden ? activeStyle : { color: theme.toolbar.item }}
+                        icon={<Workflow className="size-4" />}
+                        onClick={onToggleConnections}
+                        aria-label={connectionsHidden ? "显示节点连线" : "隐藏节点连线"}
+                        aria-pressed={connectionsHidden}
+                    />
+                </Tooltip>
                 <Tooltip title={isMiniMapOpen ? "关闭小地图" : "打开小地图"}>
                     <Button
                         type="text"

@@ -129,7 +129,9 @@ sourceNodeIds 同时承担两件事：
 
 - generate_image：无现有图片视觉来源的全新图片生成，也可带文本和图片来源。
 - edit_image：至少需要一个已有内容的真实图片节点，用于编辑、变体和身份保持。
+- upscale_image：只对一个已有内容的真实图片节点做高清修复与超分，保留原图；默认 VOSR 2.0 和保持原比例 2K，可明确选择 4K 或 SeedVR2。
 - generate_video：文生视频、图生视频以及当前模型真实支持的视频/音频参考能力。
+- upscale_video：只对一个已有内容的真实视频节点做高清修复与超分，保留原视频；使用 SeedVR2，可选择 720p、1080p 或 2K。
 - generate_audio：创建独立 audio 节点；prompt 是实际朗读文字，instructions 是音色与演绎说明。
 
 当前真实节点类型只有 image、panorama、text、config、video、audio、director、group。节点创建和修改严格使用当前工具字段，不发明节点类型或任意 metadata patch。

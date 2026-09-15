@@ -18,6 +18,7 @@ export class CodexClient {
             stdio: ["pipe", "pipe", "pipe"],
             windowsHide: true,
         });
+        this.closed = new Promise((resolve) => this.child.once("close", resolve));
         createInterface({ input: this.child.stdout }).on("line", (line) => {
             try {
                 const message = JSON.parse(line);
@@ -74,7 +75,7 @@ export class CodexClient {
     }
 
     close(error = new Error("画布连接已关闭")) {
-        if (this.stopped) return;
+        if (this.stopped) return this.closed;
         this.stopped = true;
         for (const pending of this.pending.values()) {
             clearTimeout(pending.timer);
@@ -87,5 +88,6 @@ export class CodexClient {
                 .on("error", () => this.child.kill());
         } else this.child.kill();
         this.emit("rpc", { method: "bridge/disconnected", params: { message: error.message } });
+        return this.closed;
     }
 }

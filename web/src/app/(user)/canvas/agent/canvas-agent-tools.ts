@@ -33,7 +33,9 @@ export const CANVAS_AGENT_ACTION_NAMES = [
     "arrange_nodes",
     "generate_image",
     "edit_image",
+    "upscale_image",
     "generate_video",
+    "upscale_video",
     "generate_audio",
     "get_media_task_status",
 ] as const;
@@ -83,6 +85,7 @@ const DRAMA_REVISION = { type: "integer", minimum: 1 };
 const DRAMA_INITIAL_REVISION = { type: "integer", minimum: 0 };
 const DRAMA_STAGE = { type: "string", enum: ["storyboard", "video"] };
 const DRAMA_ASSET_KIND = { type: "string", enum: ["character", "scene", "prop", "voice", "reference"] };
+const DRAMA_BINDING_ROLE = { type: "string", enum: ["character", "scene", "prop", "reference", "voice", "video_reference"] };
 const DRAMA_PARAMETERS = {
     type: "object",
     properties: {
@@ -95,7 +98,23 @@ const DRAMA_PARAMETERS = {
     additionalProperties: false,
 };
 const DRAMA_GENERATION_DEFAULTS = { type: "object", properties: { image: DRAMA_PARAMETERS, video: DRAMA_PARAMETERS }, additionalProperties: false };
-const DRAMA_BINDING_REFERENCES = { type: "array", maxItems: 50, items: { type: "object", properties: { assetId: STRING, versionId: STRING, role: STRING, order: { type: "integer", minimum: 0 }, speaker: STRING }, required: ["assetId", "versionId", "role", "order", "speaker"], additionalProperties: false } };
+const DRAMA_BINDING_REFERENCES = {
+    type: "array",
+    maxItems: 16,
+    description: "完整绑定列表。order 必须从 0 开始连续；角色名、场景名、道具名和 Look 名由 assetId/versionId 表达，不得写入 role。故事板仅使用 character、scene、prop、reference。",
+    items: {
+        type: "object",
+        properties: {
+            assetId: STRING,
+            versionId: STRING,
+            role: DRAMA_BINDING_ROLE,
+            order: { type: "integer", minimum: 0 },
+            speaker: { type: "string", description: "仅 role=voice 时填写当前 Clip 的实际说话者；其他职责必须为空字符串。" },
+        },
+        required: ["assetId", "versionId", "role", "order", "speaker"],
+        additionalProperties: false,
+    },
+};
 const DRAMA_SHOT_PROPERTIES = {
     id: STRING, title: STRING, duration: { type: "number", exclusiveMinimum: 0 }, action: STRING,
     dialogue: STRING, speaker: STRING, camera: STRING, sound: STRING, entryState: STRING, exitState: STRING,
@@ -140,7 +159,7 @@ export const CANVAS_AGENT_TOOLS: CanvasAgentToolDefinition[] = [
     defineTool("generate_drama_asset_candidate", "为当前项目资产创建候选媒体节点；按 Agent 自动生成设置决定是否提交，节点会保留资产归属。", { assetId: STRING, kind: { type: "string", enum: ["image", "audio"] }, prompt: STRING, title: STRING, sourceNodeIds: STRING_ARRAY, voice: STRING, instructions: STRING }, ["assetId", "kind", "prompt", "sourceNodeIds"]),
     defineTool("register_drama_asset_version", "把当前画布真实且已保存的媒体节点登记为资产版本；不能传 storageId 或路径。", { assetId: STRING, nodeId: STRING, note: STRING, expectedRevision: DRAMA_REVISION }, ["assetId", "nodeId", "expectedRevision"]),
     defineTool("get_drama_binding", "读取当前 Clip 指定阶段的版本化资产绑定。", { clipId: STRING, stage: DRAMA_STAGE }, ["clipId", "stage"]),
-    defineTool("update_drama_binding", "按版本完整替换当前 Clip 指定阶段绑定，并同步共享参考节点与连线。首次创建绑定使用 expectedRevision=0。", { clipId: STRING, stage: DRAMA_STAGE, expectedRevision: DRAMA_INITIAL_REVISION, references: DRAMA_BINDING_REFERENCES }, ["clipId", "stage", "expectedRevision", "references"]),
+    defineTool("update_drama_binding", "按版本完整替换当前 Clip 指定阶段绑定，并同步共享参考节点与连线。首次创建绑定使用 expectedRevision=0。role 只能表示素材用途，不能写 character_identity、scene_geography、style、project_look 等自定义名称。", { clipId: STRING, stage: DRAMA_STAGE, expectedRevision: DRAMA_INITIAL_REVISION, references: DRAMA_BINDING_REFERENCES }, ["clipId", "stage", "expectedRevision", "references"]),
     defineTool("prepare_drama_clip_nodes", "幂等准备或安全修复指定 Clip 的分组、故事板、视频节点和标准连线，不移动已有内容。", { clipIds: STRING_ARRAY }, ["clipIds"]),
     defineTool("repair_drama_clip_group_layout", "仅恢复明确 Clip 组的可见边界：不移动节点、不改提示词、参数、素材、绑定或连线；会将遗留参考节点移出分组成员关系。", { clipIds: STRING_ARRAY }, ["clipIds"]),
     defineTool("update_drama_generation_node", "只更新当前 Clip 的故事板或视频节点源提示词与公开参数，并保存正式画布。源提示词使用图片N、视频N、音频N画布令牌，禁止写入仅供预览/提交快照使用的<Picture N>/<Video N>/<Audio N>提供方标签。", { clipId: STRING, nodeId: STRING, stage: DRAMA_STAGE, prompt: STRING, parameters: DRAMA_PARAMETERS }, ["clipId", "nodeId", "stage", "prompt"]),
@@ -219,6 +238,17 @@ export const CANVAS_AGENT_TOOLS: CanvasAgentToolDefinition[] = [
         ["prompt", "sourceNodeIds"],
     ),
     defineTool(
+        "upscale_image",
+        "对一个已有内容的真实图片节点进行高清修复与超分，创建专用高清处理节点和来源连线，并按 Agent 自动生成设置决定是否提交。默认使用 VOSR 2.0，保留原图。",
+        {
+            sourceNodeId: STRING,
+            resolution: { type: "string", enum: ["2k", "4k"], description: "保持原始比例的目标长边档位，默认 2k。" },
+            model: { type: "string", enum: ["vosr2", "seedvr2"], description: "高清模型，默认 vosr2。" },
+            title: STRING,
+        },
+        ["sourceNodeId"],
+    ),
+    defineTool(
         "generate_video",
         "创建视频节点和来源连线，并按 Agent 自动生成设置决定是否提交现有视频任务链路。sourceNodeIds 只放真实直接来源，独立生成必须传空数组；其中图片、视频、音频分别按各自顺序编号。",
         {
@@ -231,6 +261,16 @@ export const CANVAS_AGENT_TOOLS: CanvasAgentToolDefinition[] = [
             generateAudio: { type: "boolean" },
         },
         ["prompt", "sourceNodeIds"],
+    ),
+    defineTool(
+        "upscale_video",
+        "对一个已有内容的真实视频节点进行高清修复与超分，创建专用高清处理节点和来源连线，并按 Agent 自动生成设置决定是否提交。使用 SeedVR2，保留原视频。",
+        {
+            sourceNodeId: STRING,
+            resolution: { type: "string", enum: ["720p", "1080p", "2k"], description: "保持原始比例的目标长边档位，默认 1080p。" },
+            title: STRING,
+        },
+        ["sourceNodeId"],
     ),
     defineTool(
         "generate_audio",
@@ -331,15 +371,24 @@ export function normalizeCanvasAgentAction(name: unknown, args: unknown, id = na
             normalized = { clipId: requiredString(input.clipId, "clipId"), stage: enumString(input.stage, "stage", ["storyboard", "video"]) };
             break;
         case "update_drama_binding": {
-            if (!Array.isArray(input.references) || input.references.length > 50) throw new Error("references 必须是最多50项的数组");
+            if (!Array.isArray(input.references) || input.references.length > 16) throw new Error("references 必须是最多16项的数组");
             const seenOrders = new Set<number>();
             const references = input.references.map((item) => {
                 if (!isRecord(item) || Object.keys(item).some((key) => !["assetId", "versionId", "role", "order", "speaker"].includes(key))) throw new Error("绑定字段无效");
                 const order = boundedInteger(item.order, 0, Number.MAX_SAFE_INTEGER);
                 if (order === undefined || seenOrders.has(order)) throw new Error("绑定顺序无效或重复");
                 seenOrders.add(order);
-                return { assetId: requiredString(item.assetId, "assetId"), versionId: requiredString(item.versionId, "versionId"), role: requiredString(item.role, "role"), order, speaker: typeof item.speaker === "string" ? item.speaker : "" };
+                const role = enumString(item.role, "role", ["character", "scene", "prop", "reference", "voice", "video_reference"]);
+                const speaker = typeof item.speaker === "string" ? item.speaker : "";
+                if (role === "voice" ? !speaker.trim() || speaker !== speaker.trim() : Boolean(speaker)) {
+                    throw new Error(role === "voice" ? "声音绑定必须填写无首尾空格的实际说话者" : "只有 voice 职责可以填写 speaker");
+                }
+                return { assetId: requiredString(item.assetId, "assetId"), versionId: requiredString(item.versionId, "versionId"), role, order, speaker };
             }).sort((a, b) => a.order - b.order);
+            if (references.some((reference, index) => reference.order !== index)) throw new Error("绑定 order 必须从 0 开始连续编号");
+            if (input.stage === "storyboard" && references.some((reference) => reference.role === "voice" || reference.role === "video_reference")) {
+                throw new Error("故事板绑定只接受 character、scene、prop、reference 图片职责");
+            }
             normalized = { clipId: requiredString(input.clipId, "clipId"), stage: enumString(input.stage, "stage", ["storyboard", "video"]), expectedRevision: boundedInteger(input.expectedRevision, 0, Number.MAX_SAFE_INTEGER), references };
             break;
         }
@@ -477,6 +526,14 @@ export function normalizeCanvasAgentAction(name: unknown, args: unknown, id = na
             if (actionName === "edit_image" && sourceNodeIds && !sourceNodeIds.length) throw new Error("edit_image 缺少图片来源节点");
             break;
         }
+        case "upscale_image":
+            normalized = {
+                sourceNodeId: requiredString(input.sourceNodeId, "sourceNodeId"),
+                resolution: input.resolution === undefined ? "2k" : enumString(input.resolution, "resolution", ["2k", "4k"]),
+                model: input.model === undefined ? "vosr2" : enumString(input.model, "model", ["vosr2", "seedvr2"]),
+                ...(optionalString(input.title) ? { title: optionalString(input.title) } : {}),
+            };
+            break;
         case "generate_video": {
             const sourceNodeIds = optionalStringArray(input.sourceNodeIds, "sourceNodeIds");
             const seconds = boundedInteger(input.seconds, -1, 30);
@@ -492,6 +549,13 @@ export function normalizeCanvasAgentAction(name: unknown, args: unknown, id = na
             };
             break;
         }
+        case "upscale_video":
+            normalized = {
+                sourceNodeId: requiredString(input.sourceNodeId, "sourceNodeId"),
+                resolution: input.resolution === undefined ? "1080p" : enumString(input.resolution, "resolution", ["720p", "1080p", "2k"]),
+                ...(optionalString(input.title) ? { title: optionalString(input.title) } : {}),
+            };
+            break;
         case "generate_audio": {
             const sourceNodeIds = optionalStringArray(input.sourceNodeIds, "sourceNodeIds");
             normalized = {
@@ -594,7 +658,9 @@ export function canvasAgentActionLabel(action: CanvasAgentAction) {
         arrange_nodes: "正在整理画布",
         generate_image: "正在创建图片节点",
         edit_image: "正在创建图片编辑节点",
+        upscale_image: "正在创建图片高清处理节点",
         generate_video: "正在创建视频节点",
+        upscale_video: "正在创建视频高清处理节点",
         generate_audio: "正在创建音频节点",
         get_media_task_status: "正在读取媒体任务",
     };
@@ -602,7 +668,7 @@ export function canvasAgentActionLabel(action: CanvasAgentAction) {
 }
 
 export function isCanvasAgentMediaAction(action: CanvasAgentAction) {
-    return action.name === "generate_image" || action.name === "edit_image" || action.name === "generate_video" || action.name === "generate_audio" || action.name === "generate_drama_asset_candidate" || action.name === "enqueue_drama_run";
+    return action.name === "generate_image" || action.name === "edit_image" || action.name === "upscale_image" || action.name === "generate_video" || action.name === "upscale_video" || action.name === "generate_audio" || action.name === "generate_drama_asset_candidate" || action.name === "enqueue_drama_run";
 }
 
 export function userLikelyRequestedCanvasAction(text: string) {

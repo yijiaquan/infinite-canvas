@@ -128,6 +128,67 @@ test("storyboard and video targets share the same asset node with target-specifi
     );
 });
 
+test("registered canvas asset node connects directly to storyboard and video without a reference copy", () => {
+    const source: CanvasNodeData = {
+        id: "asset-source",
+        type: CanvasNodeType.Image,
+        title: "Project Look",
+        position: { x: -400, y: 120 },
+        width: 220,
+        height: 140,
+        metadata: {
+            dramaAssetId: image.assetId,
+            content: "/api/files/image-1/content",
+            storageKey: `server:${image.storageId}`,
+            status: "success",
+        },
+    };
+    const board = { ...target, id: "storyboard-target", type: CanvasNodeType.Image, metadata: { ...target.metadata, dramaRole: "storyboard" as const } };
+    const first = applyDramaBindingNodes([source, target, board], [], board.id, [{ ...image, order: 2 }]);
+    const shared = applyDramaBindingNodes(first.nodes, first.connections, target.id, [{ ...image, order: 0 }]);
+
+    assert.equal(shared.nodes.length, 3);
+    assert.equal(shared.nodes.filter((node) => node.metadata?.dramaRole === "reference").length, 0);
+    assert.equal(shared.nodes.find((node) => node.id === source.id)?.metadata?.dramaAssetVersionId, image.versionId);
+    assert.deepEqual(
+        shared.connections.map(({ fromNodeId, toNodeId, dramaInputOrder }) => ({ fromNodeId, toNodeId, dramaInputOrder })),
+        [
+            { fromNodeId: source.id, toNodeId: board.id, dramaInputOrder: 2 },
+            { fromNodeId: source.id, toNodeId: target.id, dramaInputOrder: 0 },
+        ],
+    );
+});
+
+test("direct binding removes only an orphaned system reference copy", () => {
+    const source: CanvasNodeData = {
+        id: "asset-source",
+        type: CanvasNodeType.Image,
+        title: "Project Look",
+        position: { x: -400, y: 120 },
+        width: 220,
+        height: 140,
+        metadata: { dramaAssetId: image.assetId, storageKey: `server:${image.storageId}`, content: "/source.png", status: "success" },
+    };
+    const copy: CanvasNodeData = {
+        ...source,
+        id: `drama:reference:${image.versionId}`,
+        metadata: { dramaRole: "reference", dramaAssetVersionId: image.versionId, storageKey: `server:${image.storageId}`, content: "/copy.png", status: "success" },
+    };
+    const oldBinding = { id: "old-binding", fromNodeId: copy.id, toNodeId: target.id, dramaAssetVersionId: image.versionId };
+    const manual = { id: "manual", fromNodeId: "manual-source", toNodeId: "manual-target" };
+    const result = applyDramaBindingNodes([source, copy, target], [oldBinding, manual], target.id, [image]);
+
+    assert.deepEqual(
+        result.nodes.map((node) => node.id),
+        [source.id, target.id],
+    );
+    assert.equal(
+        result.connections.some((edge) => edge.fromNodeId === source.id && edge.toNodeId === target.id),
+        true,
+    );
+    assert.equal(result.connections.includes(manual), true);
+});
+
 test("different Clips share one image node while keeping target-specific binding metadata", () => {
     const clipTwoVideo: CanvasNodeData = {
         ...target,
