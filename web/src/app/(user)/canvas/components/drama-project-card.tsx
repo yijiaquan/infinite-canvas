@@ -8,8 +8,8 @@ import type { DramaProjectLibraryItem } from "../utils/drama-project-library";
 
 export function DramaProjectCard({ item, creatingEpisode = false, onCreateEpisode }: { item: DramaProjectLibraryItem; creatingEpisode?: boolean; onCreateEpisode?: (projectId: string) => void }) {
     const router = useRouter();
-    const openEpisode = (canvasId: string, workbench = false) => router.push(`/canvas/${encodeURIComponent(canvasId)}${workbench ? "?workbench=1" : ""}`);
-    const open = () => item.entryEpisode && openEpisode(item.entryEpisode.canvasId, true);
+    const openEpisode = (canvasId: string) => router.push(`/canvas/${encodeURIComponent(canvasId)}`);
+    const open = () => item.entryEpisode && openEpisode(item.entryEpisode.canvasId);
 
     return (
         <article className="flex min-h-44 flex-col justify-between rounded-lg border border-stone-200 bg-stone-50 p-5 transition hover:border-stone-400 dark:border-stone-800 dark:bg-white/5 dark:hover:border-stone-600">

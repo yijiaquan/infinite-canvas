@@ -209,6 +209,11 @@ export function useCodexAgent(options: {
         };
         const link = createCodexAgentClient(connection, options.canvasId, agentTools, {
             rpc: handleRpc, tool: handleTool, error: fail,
+            reconnecting: (reason) => {
+                if (client.current !== link) return;
+                setStatus("connecting");
+                setError(reason?.message || "");
+            },
             cancelTool: (requestId) => toolControllers.get(requestId)?.abort(new Error("画布工具执行超时")),
             ready: async () => {
                 setModels([]);

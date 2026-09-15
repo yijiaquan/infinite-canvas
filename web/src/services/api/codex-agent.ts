@@ -14,6 +14,7 @@ export type CodexModel = {
     model: string; displayName: string; defaultReasoningEffort: string; isDefault: boolean;
     supportedReasoningEfforts: Array<{ reasoningEffort: string; description: string }>;
 };
+type CodexAgentResult = Record<string, unknown> & { error?: string; msg?: string };
 export function normalizeCodexEndpoint(endpoint: string) {
     try {
         const url = new URL(endpoint);
@@ -21,12 +22,19 @@ export function normalizeCodexEndpoint(endpoint: string) {
         return url.origin;
     } catch { throw new Error("本地 Agent 地址必须为 http://127.0.0.1:端口"); }
 }
+export async function parseCodexAgentResponse<T>(response: Response): Promise<T> {
+    const text = await response.text();
+    try { return JSON.parse(text) as T; }
+    catch {
+        throw new Error("本地地址返回的不是 Canvas Agent 数据，请确认端口与 Agent 启动输出一致");
+    }
+}
 export async function readCodexAgentConfig(endpoint: string): Promise<{ url: string; hasToken: boolean }> {
     const url = normalizeCodexEndpoint(endpoint);
     let response: Response;
     try { response = await fetch(url + "/config", { signal: AbortSignal.timeout(5_000) }); }
     catch { throw new Error("未连接到本地 Agent，请先启动服务，再使用插件自动连接"); }
-    const result = await response.json();
+    const result = await parseCodexAgentResponse<{ url: string; hasToken: boolean; error?: string }>(response);
     if (!response.ok) throw new Error(result.error || "无法读取本地 Agent 状态");
     return result;
 }
@@ -34,7 +42,7 @@ export function createCodexAgentClient(
     connection: CodexConnection,
     canvasId: string,
     tools: unknown[],
-    handlers: { rpc: (event: CodexRpcEvent) => void; tool: (event: CodexToolEvent) => void; cancelTool: (requestId: string) => void; ready: () => Promise<void>; error: (error: Error) => void },
+    handlers: { rpc: (event: CodexRpcEvent) => void; tool: (event: CodexToolEvent) => void; cancelTool: (requestId: string) => void; ready: () => Promise<void>; reconnecting: (error?: Error) => void; error: (error: Error) => void },
 ) {
     const clientId = crypto.randomUUID();
     const endpoint = normalizeCodexEndpoint(connection.endpoint);
@@ -43,6 +51,7 @@ export function createCodexAgentClient(
     let serviceId = "";
     let registered = false;
     let activitySequence = 0;
+    let registrationRetry: ReturnType<typeof setTimeout> | undefined;
     const syncCodexGeneration = (generation: number, message: string) => {
         if (!(generation > codexGeneration)) return;
         const previous = codexGeneration;
@@ -56,7 +65,7 @@ export function createCodexAgentClient(
             body: JSON.stringify({ clientId, ...body }),
             signal: path === "/rpc" ? lifetime.signal : AbortSignal.any([lifetime.signal, AbortSignal.timeout(30_000)]),
         });
-        const result = await response.json();
+        const result = await parseCodexAgentResponse<CodexAgentResult>(response);
         if (path === "/rpc") syncCodexGeneration(Number(response.headers.get("x-canvas-agent-generation")), result?.error || "Codex 连接已断开");
         if (!response.ok && !(path === "/result" && response.status === 409)) throw new Error(result.error || result.msg || "本地 Codex 请求失败");
         return result as T;
@@ -87,12 +96,17 @@ export function createCodexAgentClient(
     const isActivePage = () => document.visibilityState === "visible" && document.hasFocus();
     const activate = () => {
         if (!registered || !isActivePage() || lifetime.signal.aborted) return;
-        void request("/activate", { canvasId, ...activity() }).catch(fail);
+        void request("/activate", { canvasId, ...activity() }).catch((reason) => {
+            if (!lifetime.signal.aborted) handlers.reconnecting(reason instanceof Error ? reason : new Error("本地 Agent 画布激活失败"));
+        });
     };
     window.addEventListener("focus", activate);
     window.addEventListener("pageshow", activate);
     document.addEventListener("visibilitychange", activate);
-    events.onopen = () => {
+    const register = () => {
+        if (lifetime.signal.aborted || events.readyState !== EventSource.OPEN) return;
+        clearTimeout(registrationRetry);
+        registrationRetry = undefined;
         const currentActivity = isActivePage() ? activity() : undefined;
         void request<{ serviceId: string }>("/connect", { canvasId, tools, activity: currentActivity })
             .then((result) => {
@@ -100,9 +114,17 @@ export function createCodexAgentClient(
                 serviceId = result.serviceId;
                 return handlers.ready();
             })
-            .catch(fail);
+            .catch((reason) => {
+                if (lifetime.signal.aborted) return;
+                handlers.reconnecting(reason instanceof Error ? reason : new Error("本地 Agent 重新注册失败"));
+                clearTimeout(registrationRetry);
+                registrationRetry = setTimeout(register, 2_000);
+            });
     };
-    events.onerror = () => fail(new Error("本地 Agent 连接已断开，请检查服务和连接配置"));
+    events.onopen = register;
+    events.onerror = () => {
+        if (!lifetime.signal.aborted) handlers.reconnecting();
+    };
     return {
         rpc,
         stop: () => { codexGeneration += 1; return rpc("bridge/stop"); },
@@ -116,6 +138,7 @@ export function createCodexAgentClient(
             window.removeEventListener("focus", activate);
             window.removeEventListener("pageshow", activate);
             document.removeEventListener("visibilitychange", activate);
+            clearTimeout(registrationRetry);
             events.close();
             lifetime.abort();
         },
