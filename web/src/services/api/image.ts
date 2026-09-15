@@ -272,11 +272,12 @@ function parseImagePayload(payload: ImageApiResponse, mime: string): GeneratedIm
 function parseChatImagesPayload(payload: ChatImagesApiResponse): GeneratedImage[] {
     if (typeof payload.code === "number" && payload.code !== 0) throw new ImageRequestError(payload.msg || "请求失败", payload);
     if (payload.error?.message) throw new ImageRequestError(payload.error.message, payload);
-    const images = payload.choices
-        ?.flatMap((choice) => choice.message?.images || [])
-        .map((item) => item.image_url?.url || "")
-        .filter(Boolean)
-        .map((dataUrl) => ({ id: nanoid(), dataUrl })) || [];
+    const images =
+        payload.choices
+            ?.flatMap((choice) => choice.message?.images || [])
+            .map((item) => item.image_url?.url || "")
+            .filter(Boolean)
+            .map((dataUrl) => ({ id: nanoid(), dataUrl })) || [];
     if (!images.length) throw new ImageRequestError("Chat Completions 没有返回图片", payload);
     return images;
 }
@@ -463,8 +464,7 @@ async function parseImagesStreamResponse(response: Response, mime: string): Prom
             resultPayload = event as ImageApiResponse;
         }
         if (resolveImageDataUrl(event, mime)) {
-            const imageIndex =
-                typeof event.image_index === "number" || typeof event.image_index === "string" ? String(event.image_index) : `event-${imageItems.size}`;
+            const imageIndex = typeof event.image_index === "number" || typeof event.image_index === "string" ? String(event.image_index) : `event-${imageItems.size}`;
             imageItems.set(imageIndex, event);
         }
     });
@@ -518,6 +518,7 @@ function withPromptGuard(config: AiConfig, prompt: string) {
 
 function usesAccountProxy(config: AiConfig) {
     const token = useUserStore.getState().token;
+    if (channelProtocolForConfig(config) === "comfyui") return false;
     return config.channelMode === "remote" || (config.channelMode === "local" && Boolean(token));
 }
 
@@ -577,7 +578,7 @@ async function writeLocalAICallLog(config: AiConfig, endpoint: string, startedAt
             responseBody,
             error,
         }),
-    }).catch(() => { });
+    }).catch(() => {});
 }
 
 function stringifyLogPayload(value: unknown) {
@@ -600,7 +601,7 @@ function redactLogImages(value: unknown) {
     const record = value as Record<string, unknown>;
     for (const key of Object.keys(record)) {
         const item = record[key];
-        if (typeof item === "string" && (item.startsWith("data:image/") || item.length > 2048 && looksLikeBase64(item))) {
+        if (typeof item === "string" && (item.startsWith("data:image/") || (item.length > 2048 && looksLikeBase64(item)))) {
             record[key] = `[redacted image/string len=${item.length}]`;
             continue;
         }
@@ -854,12 +855,12 @@ function createChatImageBody(config: AiConfig, prompt: string, inputImageDataUrl
     const text = withPromptGuard(config, withSystemPrompt(config, prompt));
     return {
         model: config.model,
-        messages: [{
-            role: "user",
-            content: inputImageDataUrls.length
-                ? [{ type: "text", text }, ...inputImageDataUrls.map((url) => ({ type: "image_url", image_url: { url } }))]
-                : text,
-        }],
+        messages: [
+            {
+                role: "user",
+                content: inputImageDataUrls.length ? [{ type: "text", text }, ...inputImageDataUrls.map((url) => ({ type: "image_url", image_url: { url } }))] : text,
+            },
+        ],
         modalities: ["image", "text"],
         ...(Object.keys(imageConfig).length ? { image_config: imageConfig } : {}),
         stream: false,
@@ -910,14 +911,19 @@ async function requestChatImagesSingle(config: AiConfig, prompt: string, inputIm
         "/chat/completions",
         body,
         params.timeoutSeconds,
-        () => requestWithTransientRetry(() => withTimeout(params.timeoutSeconds, (signal) => fetch(aiApiUrl(config, "/chat/completions"), {
-            method: "POST",
-            headers: aiHeaders(config, "application/json"),
-            body: JSON.stringify(body),
-            signal,
-        }))),
+        () =>
+            requestWithTransientRetry(() =>
+                withTimeout(params.timeoutSeconds, (signal) =>
+                    fetch(aiApiUrl(config, "/chat/completions"), {
+                        method: "POST",
+                        headers: aiHeaders(config, "application/json"),
+                        body: JSON.stringify(body),
+                        signal,
+                    }),
+                ),
+            ),
         async (response) => {
-            const payload = await response.json() as ChatImagesApiResponse;
+            const payload = (await response.json()) as ChatImagesApiResponse;
             return { images: parseChatImagesPayload(payload), responseBody: stringifyLogPayload(payload) };
         },
     );
@@ -967,10 +973,12 @@ async function requestImages(config: AiConfig & { seedIndex?: number; seedCount?
 }
 
 async function syncGeneratedImages(images: GeneratedImage[]) {
-    return Promise.all(images.map(async (image) => {
-        const stored = await autoSyncImage(image.dataUrl, image.id, image.storageKey);
-        return stored ? { id: image.id, dataUrl: stored.url, seed: image.seed, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType } : image;
-    }));
+    return Promise.all(
+        images.map(async (image) => {
+            const stored = await autoSyncImage(image.dataUrl, image.id, image.storageKey);
+            return stored ? { id: image.id, dataUrl: stored.url, seed: image.seed, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType } : image;
+        }),
+    );
 }
 
 async function syncCanvasImageTask(task: CanvasImageTask, resultId = task.started_at): Promise<CanvasImageTask> {
@@ -1010,18 +1018,21 @@ export async function createCanvasImageTask(config: AiConfig & { seedIndex?: num
         const images = await requestImages({ ...config, count: "1" }, prompt, references);
         const [image] = images;
         if (!image) throw new Error("接口没有返回图片");
-        return syncCanvasImageTask({
-            id: options.clientTaskId || nanoid(),
-            source: options.source || "canvas",
-            source_id: options.sourceId || "",
-            node_id: options.nodeId || "",
-            model: config.model,
-            prompt,
-            status: "completed",
-            progress: 100,
-            image_url: image.dataUrl,
-            ...(isKIESeedreamLayerDecompositionModel(config.model) ? { image_urls: images.map((item) => item.dataUrl) } : {}),
-        }, image.id);
+        return syncCanvasImageTask(
+            {
+                id: options.clientTaskId || nanoid(),
+                source: options.source || "canvas",
+                source_id: options.sourceId || "",
+                node_id: options.nodeId || "",
+                model: config.model,
+                prompt,
+                status: "completed",
+                progress: 100,
+                image_url: image.dataUrl,
+                ...(isKIESeedreamLayerDecompositionModel(config.model) ? { image_urls: images.map((item) => item.dataUrl) } : {}),
+            },
+            image.id,
+        );
     }
     const params = createImageRequestParams({ ...config, count: "1" });
     const request = await createCanvasImageTaskRequest({ ...config, count: "1" }, prompt, references, params, options);
@@ -1220,6 +1231,10 @@ export async function fetchImageModels(config: AiConfig) {
     const channel = localChannelForActiveModel(config);
     if (channel?.protocol === "gemini") return fetchGeminiModels(channel.baseUrl, channel.apiKey);
     if (channel?.protocol === "autodl") return (await fetchAutoDLWorkflows(channel.baseUrl)).map((workflow) => workflow.uuid);
+    if (channel?.protocol === "comfyui") {
+        const { fetchComfyUIWorkflows } = await import("./comfyui");
+        return (await fetchComfyUIWorkflows(channel.baseUrl)).filter((workflow) => workflow.ready).map((workflow) => workflow.id);
+    }
     if (isMiniMaxChannel(channel)) return [...miniMaxModels];
     if (isMimoChannel(channel || { baseUrl: config.baseUrl })) return [...mimoModels];
     try {
@@ -1248,12 +1263,19 @@ async function requestGeminiImageSingle(config: AiConfig, prompt: string, refere
         references.length ? "/images/edits" : "/images/generations",
         body,
         params.timeoutSeconds,
-        () => requestWithTransientRetry(() => withTimeout(params.timeoutSeconds, (signal) => fetch(
-            proxy ? `/api/v1${references.length ? "/images/edits" : "/images/generations"}` : geminiActionUrl(channel?.baseUrl || config.baseUrl, config.model, "generateContent"),
-            { method: "POST", headers: proxy ? aiHeaders(config, "application/json") : geminiDirectHeaders(config), body: JSON.stringify(nativeBody), signal },
-        ))),
+        () =>
+            requestWithTransientRetry(() =>
+                withTimeout(params.timeoutSeconds, (signal) =>
+                    fetch(proxy ? `/api/v1${references.length ? "/images/edits" : "/images/generations"}` : geminiActionUrl(channel?.baseUrl || config.baseUrl, config.model, "generateContent"), {
+                        method: "POST",
+                        headers: proxy ? aiHeaders(config, "application/json") : geminiDirectHeaders(config),
+                        body: JSON.stringify(nativeBody),
+                        signal,
+                    }),
+                ),
+            ),
         async (response) => {
-            const payload = await response.json() as Record<string, unknown>;
+            const payload = (await response.json()) as Record<string, unknown>;
             const images = parseGeminiImages(payload);
             return { images, responseBody: stringifyLogPayload(payload) };
         },
@@ -1278,7 +1300,18 @@ function geminiImageSettings(model: string, quality: string, size: string, resol
     const aspectRatio = normalizeGeminiImageRatio(size);
     const normalizedQuality = quality.trim().toLowerCase();
     const preset = `${size} ${resolvedSize || ""}`.toLowerCase();
-    const imageSize = normalizedQuality === "low" ? "1K" : normalizedQuality === "medium" ? "2K" : normalizedQuality === "high" ? "4K" : preset.includes("6272x2688") || preset.includes("3840x2160") || preset.includes("2160x3840") ? "4K" : preset.includes("2048x") || preset.includes("3136x1344") ? "2K" : "";
+    const imageSize =
+        normalizedQuality === "low"
+            ? "1K"
+            : normalizedQuality === "medium"
+              ? "2K"
+              : normalizedQuality === "high"
+                ? "4K"
+                : preset.includes("6272x2688") || preset.includes("3840x2160") || preset.includes("2160x3840")
+                  ? "4K"
+                  : preset.includes("2048x") || preset.includes("3136x1344")
+                    ? "2K"
+                    : "";
     return {
         ...(aspectRatio ? { aspectRatio } : {}),
         ...(!model.toLowerCase().includes("2.5") && imageSize ? { imageSize } : {}),
@@ -1288,26 +1321,47 @@ function geminiImageSettings(model: string, quality: string, size: string, resol
 function normalizeGeminiImageRatio(value: string) {
     const normalized = value.trim().toLowerCase();
     const exact: Record<string, string> = {
-        "1:1": "1:1", "2048x2048": "1:1", "3:2": "3:2", "2:3": "2:3", "4:3": "4:3", "3:4": "3:4",
-        "16:9": "16:9", "2048x1152": "16:9", "3840x2160": "16:9", "9:16": "9:16", "1152x2048": "9:16", "2160x3840": "9:16",
-        "21:9": "21:9", "3136x1344": "21:9", "6272x2688": "21:9",
+        "1:1": "1:1",
+        "2048x2048": "1:1",
+        "3:2": "3:2",
+        "2:3": "2:3",
+        "4:3": "4:3",
+        "3:4": "3:4",
+        "16:9": "16:9",
+        "2048x1152": "16:9",
+        "3840x2160": "16:9",
+        "9:16": "9:16",
+        "1152x2048": "9:16",
+        "2160x3840": "9:16",
+        "21:9": "21:9",
+        "3136x1344": "21:9",
+        "6272x2688": "21:9",
     };
     if (exact[normalized]) return exact[normalized];
     if (normalized === "auto") return "";
     const dimensions = normalized.match(/^(\d+)x(\d+)$/);
     if (!dimensions) return "1:1";
     const ratio = Number(dimensions[1]) / Number(dimensions[2]);
-    const ratios: Array<[string, number]> = [["1:1", 1], ["3:2", 1.5], ["2:3", 2 / 3], ["4:3", 4 / 3], ["3:4", 3 / 4], ["16:9", 16 / 9], ["9:16", 9 / 16], ["21:9", 21 / 9]];
-    return ratios.reduce((best, current) => Math.abs(current[1] - ratio) < Math.abs(best[1] - ratio) ? current : best)[0];
+    const ratios: Array<[string, number]> = [
+        ["1:1", 1],
+        ["3:2", 1.5],
+        ["2:3", 2 / 3],
+        ["4:3", 4 / 3],
+        ["3:4", 3 / 4],
+        ["16:9", 16 / 9],
+        ["9:16", 9 / 16],
+        ["21:9", 21 / 9],
+    ];
+    return ratios.reduce((best, current) => (Math.abs(current[1] - ratio) < Math.abs(best[1] - ratio) ? current : best))[0];
 }
 
 function parseGeminiImages(payload: Record<string, unknown>) {
-    const candidates = Array.isArray(payload.candidates) ? payload.candidates as Array<Record<string, unknown>> : [];
+    const candidates = Array.isArray(payload.candidates) ? (payload.candidates as Array<Record<string, unknown>>) : [];
     const images = candidates.flatMap((candidate) => {
-        const content = candidate.content && typeof candidate.content === "object" ? candidate.content as Record<string, unknown> : {};
-        const parts = Array.isArray(content.parts) ? content.parts as Array<Record<string, unknown>> : [];
+        const content = candidate.content && typeof candidate.content === "object" ? (candidate.content as Record<string, unknown>) : {};
+        const parts = Array.isArray(content.parts) ? (content.parts as Array<Record<string, unknown>>) : [];
         return parts.flatMap((part) => {
-            const inlineData = part.inlineData && typeof part.inlineData === "object" ? part.inlineData as Record<string, unknown> : {};
+            const inlineData = part.inlineData && typeof part.inlineData === "object" ? (part.inlineData as Record<string, unknown>) : {};
             const data = typeof inlineData.data === "string" ? inlineData.data : "";
             if (!data) return [];
             const mimeType = typeof inlineData.mimeType === "string" ? inlineData.mimeType : IMAGE_MIME;
@@ -1333,11 +1387,14 @@ async function requestGeminiText(config: AiConfig, messages: ChatCompletionMessa
     }
     let answer = "";
     await readJsonServerSentEvents(response, (event) => {
-        const candidates = Array.isArray(event.candidates) ? event.candidates as Array<Record<string, unknown>> : [];
-        const delta = candidates.flatMap((candidate) => {
-            const content = candidate.content && typeof candidate.content === "object" ? candidate.content as Record<string, unknown> : {};
-            return Array.isArray(content.parts) ? content.parts as Array<Record<string, unknown>> : [];
-        }).map((part) => typeof part.text === "string" ? part.text : "").join("");
+        const candidates = Array.isArray(event.candidates) ? (event.candidates as Array<Record<string, unknown>>) : [];
+        const delta = candidates
+            .flatMap((candidate) => {
+                const content = candidate.content && typeof candidate.content === "object" ? (candidate.content as Record<string, unknown>) : {};
+                return Array.isArray(content.parts) ? (content.parts as Array<Record<string, unknown>>) : [];
+            })
+            .map((part) => (typeof part.text === "string" ? part.text : ""))
+            .join("");
         if (delta) {
             answer += delta;
             onDelta(answer);
@@ -1352,7 +1409,13 @@ async function createGeminiTextBody(config: AiConfig, messages: ChatCompletionMe
     const contents: Array<{ role: string; parts: Array<Record<string, unknown>> }> = [];
     for (const message of messages) {
         if (message.role === "system") {
-            const text = typeof message.content === "string" ? message.content : message.content.filter((part) => part.type === "text").map((part) => part.type === "text" ? part.text : "").join("\n");
+            const text =
+                typeof message.content === "string"
+                    ? message.content
+                    : message.content
+                          .filter((part) => part.type === "text")
+                          .map((part) => (part.type === "text" ? part.text : ""))
+                          .join("\n");
             if (text.trim()) systemParts.push({ text });
             continue;
         }
@@ -1374,7 +1437,7 @@ async function fetchGeminiModels(baseUrl: string, apiKey: string) {
         if (pageToken) url.searchParams.set("pageToken", pageToken);
         const response = await fetch(url, { headers: { "x-goog-api-key": apiKey } });
         if (!response.ok) throw new Error(geminiErrorMessage(await response.json().catch(() => ({})), `读取模型失败（${response.status}）`));
-        const payload = await response.json() as { models?: Array<{ name?: string; supportedGenerationMethods?: string[] }>; nextPageToken?: string };
+        const payload = (await response.json()) as { models?: Array<{ name?: string; supportedGenerationMethods?: string[] }>; nextPageToken?: string };
         for (const item of payload.models || []) {
             const name = item.name?.replace(/^models\//, "") || "";
             const methods = item.supportedGenerationMethods || [];
@@ -1411,21 +1474,20 @@ function normalizeAgnesImage21Ratio(value: string) {
     return "1:1";
 }
 
-function applyAgnesImageSize(
-    body: Record<string, unknown>,
-    config: AiConfig,
-    params: ImageRequestParams,
-) {
+function applyAgnesImageSize(body: Record<string, unknown>, config: AiConfig, params: ImageRequestParams) {
     if (!isAgnesImage21Model(config.model)) {
         if (params.size) body.size = params.size;
         return;
     }
-    body.size = ({
-        auto: "1K",
-        low: "2K",
-        medium: "3K",
-        high: "4K",
-    } as Record<string, string>)[params.quality] || "1K";
+    body.size =
+        (
+            {
+                auto: "1K",
+                low: "2K",
+                medium: "3K",
+                high: "4K",
+            } as Record<string, string>
+        )[params.quality] || "1K";
     body.ratio = normalizeAgnesImage21Ratio(config.size);
 }
 
@@ -1453,7 +1515,7 @@ async function requestAgnesImageEdit(config: AiConfig & { seedIndex?: number; se
                 if (publicUrl) return publicUrl;
             }
             return imageToDataUrl(ref);
-        })
+        }),
     );
 
     const body: Record<string, unknown> = {

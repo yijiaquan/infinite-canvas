@@ -1,5 +1,8 @@
 export function modelKey(modelName: string) {
-    return modelName.trim().toLowerCase().replace(/[._/]+/g, "-");
+    return modelName
+        .trim()
+        .toLowerCase()
+        .replace(/[._/]+/g, "-");
 }
 
 export function isCogVideoX3Model(modelName: string) {
@@ -19,6 +22,7 @@ export function normalizeCogVideoX3Duration(value: string) {
 
 export function supportsVideoFrameReferences(modelName: string, protocol = "") {
     if (protocol === "autodl") return modelName === "minimax_h3_b99_002" || modelName === "minimax_h3_lightx2v";
+    if (protocol === "comfyui") return modelName === "comfyui:minimax-h3-fl2v";
     const model = modelKey(modelName);
     if (protocol === "88api") {
         return (

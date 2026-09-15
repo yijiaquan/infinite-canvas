@@ -43,8 +43,8 @@ func TestFetchAdminChannelModelsReportsArkPlanModelsUnsupported(t *testing.T) {
 
 	_, err := fetchAdminChannelModels(model.ModelChannel{
 		Protocol: "ark",
-		BaseURL: server.URL + "/api/plan/v3/contents/generations/tasks",
-		APIKey:  "test-key",
+		BaseURL:  server.URL + "/api/plan/v3/contents/generations/tasks",
+		APIKey:   "test-key",
 	})
 	if err == nil {
 		t.Fatal("expected unsupported /models error")
@@ -79,5 +79,37 @@ func TestBuildModelChannelURLZhipuV4(t *testing.T) {
 		if got != tt.want {
 			t.Fatalf("BuildModelChannelURL(%q, %q) = %q, want %q", tt.baseURL, tt.path, got, tt.want)
 		}
+	}
+}
+
+func TestAdminComfyUIChannelDoesNotRequireAPIKey(t *testing.T) {
+	channel, err := resolveAdminChannel(nil, model.ModelChannel{
+		Protocol: ModelChannelProtocolComfyUI,
+		BaseURL:  "http://127.0.0.1:8188",
+	})
+	if err != nil {
+		t.Fatalf("resolveAdminChannel returned error: %v", err)
+	}
+	if channel.BaseURL != "http://127.0.0.1:8188" || channel.APIKey != "" {
+		t.Fatalf("unexpected channel: %#v", channel)
+	}
+}
+
+func TestModelChannelsForModelAllowsComfyUIWithoutAPIKey(t *testing.T) {
+	channels := modelChannelsForModel([]model.ModelChannel{{
+		ID: "comfy", Protocol: ModelChannelProtocolComfyUI, BaseURL: "http://127.0.0.1:8188",
+		Models: []string{"comfyui:minimax-h3-t2v"}, Weight: 1, Enabled: true,
+	}}, "comfyui:minimax-h3-t2v")
+	if len(channels) != 1 || channels[0].ID != "comfy" {
+		t.Fatalf("unexpected channels: %#v", channels)
+	}
+}
+
+func TestComfyUIModelsAreNotClassifiedAsText(t *testing.T) {
+	if !isVideoModelName("comfyui:minimax-h3-t2v") || !isVideoModelName("comfyui:seedvr2-upscale") {
+		t.Fatal("ComfyUI video workflow was not classified as video")
+	}
+	if isTextModelName("comfyui:minimax-music3") {
+		t.Fatal("ComfyUI audio workflow was classified as text")
 	}
 }

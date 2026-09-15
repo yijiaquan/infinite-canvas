@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	maxAgentSkillContentLength = 20000
-	maxAgentSkillPathLength    = 191
+	maxAgentSkillContentLength     = 20000
+	maxAgentSkillFileContentLength = 30000
+	maxAgentSkillPathLength        = 191
 )
 
 func ListEnabledSystemAgentSkills() ([]model.AgentSkill, error) {
@@ -89,7 +90,9 @@ func DeleteCurrentUserAgentSkill(ctx context.Context, id string) error {
 }
 
 func DeleteSystemAgentSkill(id string) error {
-	return repository.DeleteSystemAgentSkill(strings.TrimSpace(id))
+	id = strings.TrimSpace(id)
+	key, version := managedAgentSkillPackage(id)
+	return repository.DeleteSystemAgentSkill(id, key, version, now())
 }
 
 func saveAgentSkill(input model.AgentSkill, source string, ownerUserID string) (model.AgentSkill, error) {
@@ -174,8 +177,8 @@ func normalizeAgentSkillFiles(skillID string, files []model.AgentSkillFile, curr
 			if ext != ".md" && ext != ".markdown" && ext != ".txt" {
 				return nil, errors.New("Skill 只支持 Markdown 或文本文件")
 			}
-			if utf8.RuneCountInString(content) > maxAgentSkillContentLength {
-				return nil, errors.New("Skill 文件不能超过 20000 字：" + filePath)
+			if utf8.RuneCountInString(content) > maxAgentSkillFileContentLength {
+				return nil, errors.New("Skill 文件不能超过 30000 字：" + filePath)
 			}
 		}
 		result = append(result, model.AgentSkillFile{SkillID: skillID, Path: filePath, Kind: kind, Content: content, Sort: input.Sort, CreatedAt: current, UpdatedAt: current})

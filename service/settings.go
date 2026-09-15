@@ -422,7 +422,7 @@ func isVideoModelName(modelName string) bool {
 	if kind := AutoDLModelKind(modelName); kind != "unsupported" {
 		return kind == "video"
 	}
-	return name == "minimax-h3" || strings.Contains(name, "seedance") || strings.Contains(name, "video") || strings.Contains(name, "sd2.0 720p") || strings.Contains(name, "sd2.5 720p")
+	return name == "minimax-h3" || strings.HasPrefix(name, "comfyui:minimax-h3-") || name == "comfyui:seedvr2-upscale" || strings.Contains(name, "seedance") || strings.Contains(name, "video") || strings.Contains(name, "sd2.0 720p") || strings.Contains(name, "sd2.5 720p")
 }
 
 func isImageModelName(modelName string) bool {
@@ -434,6 +434,9 @@ func isImageModelName(modelName string) bool {
 }
 
 func isTextModelName(modelName string) bool {
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(modelName)), "comfyui:") {
+		return false
+	}
 	return AutoDLModelKind(modelName) != "audio" && !isImageModelName(modelName) && !isVideoModelName(modelName)
 }
 
@@ -458,7 +461,7 @@ func normalizeModelChannel(channel model.ModelChannel) model.ModelChannel {
 
 func resolveAdminChannel(index *int, channel model.ModelChannel) (model.ModelChannel, error) {
 	resolved := normalizeModelChannel(channel)
-	if strings.TrimSpace(resolved.APIKey) == "" {
+	if strings.TrimSpace(resolved.APIKey) == "" && !IsComfyUIChannel(resolved.Protocol) {
 		settings, err := repository.GetSettings()
 		if err != nil {
 			return model.ModelChannel{}, err
@@ -484,7 +487,7 @@ func resolveAdminChannel(index *int, channel model.ModelChannel) (model.ModelCha
 	if strings.TrimSpace(resolved.BaseURL) == "" {
 		return model.ModelChannel{}, safeMessageError{message: "缺少接口地址"}
 	}
-	if strings.TrimSpace(resolved.APIKey) == "" {
+	if strings.TrimSpace(resolved.APIKey) == "" && !IsComfyUIChannel(resolved.Protocol) {
 		return model.ModelChannel{}, safeMessageError{message: "缺少 API Key"}
 	}
 	return resolved, nil
@@ -1045,7 +1048,7 @@ func providerSecureHash(parts []string) string {
 func modelChannelsForModel(channels []model.ModelChannel, modelName string) []model.ModelChannel {
 	result := []model.ModelChannel{}
 	for _, channel := range channels {
-		if !channel.Enabled || channel.BaseURL == "" || channel.APIKey == "" {
+		if !channel.Enabled || channel.BaseURL == "" || channel.APIKey == "" && !IsComfyUIChannel(channel.Protocol) {
 			continue
 		}
 		for _, item := range channel.Models {

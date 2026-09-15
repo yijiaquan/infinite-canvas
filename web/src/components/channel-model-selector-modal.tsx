@@ -105,7 +105,7 @@ export function ChannelModelSelectorModal({ channel, models, sourceModels = [], 
                 <Flex gap={12} wrap>
                     <Input.Search placeholder="搜索模型" allowClear value={keyword} onChange={(event) => setKeyword(event.target.value)} style={{ flex: "1 1 260px" }} />
                     <Space.Compact style={{ flex: "1 1 320px" }}>
-                        <Input value={newModel} placeholder={channel?.protocol === "autodl" ? "输入工作流 ID" : "输入模型名称"} onChange={(event) => setNewModel(event.target.value)} onPressEnter={addModel} />
+						<Input value={newModel} placeholder={channel?.protocol === "autodl" || channel?.protocol === "comfyui" ? "输入工作流 ID" : "输入模型名称"} onChange={(event) => setNewModel(event.target.value)} onPressEnter={addModel} />
                         <Button onClick={addModel}>增加模型</Button>
                         <Button icon={<ReloadOutlined />} loading={fetching} onClick={() => void fetchModels()}>
                             拉取模型列表

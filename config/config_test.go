@@ -14,7 +14,7 @@ func TestNormalizeDockerSQLiteDSNUsesMountedDataDir(t *testing.T) {
 	}
 	Cfg = Config{StorageDriver: "sqlite", DatabaseDSN: "data/infinite-canvas.db?_pragma=busy_timeout(5000)"}
 
-	normalizeDockerSQLiteDSN(appDataDir)
+	normalizeDockerSQLiteDSN(appDataDir, "linux")
 
 	want := filepath.Join(root, "data", "infinite-canvas.db") + "?_pragma=busy_timeout(5000)"
 	if Cfg.DatabaseDSN != want {
@@ -25,9 +25,18 @@ func TestNormalizeDockerSQLiteDSNUsesMountedDataDir(t *testing.T) {
 func TestNormalizeDockerSQLiteDSNLeavesLocalPathWithoutMountedDataDir(t *testing.T) {
 	Cfg = Config{StorageDriver: "sqlite", DatabaseDSN: "data/infinite-canvas.db"}
 
-	normalizeDockerSQLiteDSN(filepath.Join(t.TempDir(), "missing-data"))
+	normalizeDockerSQLiteDSN(filepath.Join(t.TempDir(), "missing-data"), "linux")
 
 	if Cfg.DatabaseDSN != "data/infinite-canvas.db" {
 		t.Fatalf("DatabaseDSN = %q, want relative local path", Cfg.DatabaseDSN)
+	}
+}
+
+func TestNormalizeDockerSQLiteDSNLeavesWindowsDatabaseInProject(t *testing.T) {
+	appDataDir := t.TempDir()
+	Cfg = Config{StorageDriver: "sqlite", DatabaseDSN: "data/infinite-canvas.db"}
+	normalizeDockerSQLiteDSN(appDataDir, "windows")
+	if Cfg.DatabaseDSN != "data/infinite-canvas.db" {
+		t.Fatalf("Windows database was redirected outside project: %q", Cfg.DatabaseDSN)
 	}
 }

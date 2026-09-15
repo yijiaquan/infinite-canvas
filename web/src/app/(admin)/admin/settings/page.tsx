@@ -212,7 +212,7 @@ export default function AdminSettingsPage() {
             message.warning("请先填写接口地址");
             return;
         }
-        if (editingChannelIndex === null && !channel?.apiKey) {
+        if (editingChannelIndex === null && channel?.protocol !== "comfyui" && !channel?.apiKey) {
             message.warning("请先填写 API Key");
             return;
         }
@@ -885,8 +885,8 @@ export default function AdminSettingsPage() {
                                 </Form.Item>
                             </Col>
                             <Col span={24}>
-                                <Form.Item name="apiKey" label="API Key" rules={editingChannelIndex === null ? [{ required: true, message: "请输入 API Key" }] : []}>
-                                    <Input.Password placeholder={editingChannelIndex === null ? "" : "留空则沿用已保存的 API Key"} />
+                                <Form.Item name="apiKey" label="API Key" rules={editingChannelIndex === null && channelProtocol !== "comfyui" ? [{ required: true, message: "请输入 API Key" }] : []}>
+                                    {channelProtocol === "comfyui" ? <Input placeholder="无需 API Key" disabled /> : <Input.Password placeholder={editingChannelIndex === null ? "" : "留空则沿用已保存的 API Key"} />}
                                 </Form.Item>
                             </Col>
                             <Col span={24}>

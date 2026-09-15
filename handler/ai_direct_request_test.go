@@ -23,7 +23,7 @@ func TestPrepareDirectAIRequestKIEReferences(t *testing.T) {
 			"video_reference[]": []any{markers["video"]},
 			"audio_reference[]": []any{markers["audio"]},
 		},
-	})
+	}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestPrepareDirectAIRequestKIEGrokImagineImage20(t *testing.T) {
 		Model:    "grok-imagine-image-2-0/text-to-image",
 		Endpoint: "/images/generations",
 		Body:     map[string]any{"prompt": "test", "size": "1536x1024"},
-	})
+	}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func TestPrepareDirectAIRequestAPIMartImageReferences(t *testing.T) {
 			"prompt": "test",
 			"image":  markers,
 		},
-	})
+	}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +139,7 @@ func TestPrepareDirectAIRequestRejectsMediaData(t *testing.T) {
 		Model:    "bytedance/seedance-2",
 		Endpoint: "/videos",
 		Body:     map[string]any{"image": "data:image/png;base64,AAAA"},
-	})
+	}, "")
 	if err == nil || !strings.Contains(err.Error(), "参考文件不能传给参数转译接口") {
 		t.Fatalf("unexpected error: %v", err)
 	}

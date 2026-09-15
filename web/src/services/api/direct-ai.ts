@@ -5,7 +5,8 @@ import { resolveImageUrl } from "@/services/image-storage";
 import { getStorageObjectInfo } from "@/services/api/storage";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
-import { buildApiUrl, localChannelForActiveModel, type AiConfig, type DirectAIProvider } from "@/stores/use-config-store";
+import { buildApiUrl, channelIdForActiveModel, localChannelForActiveModel, type AiConfig, type DirectAIProvider } from "@/stores/use-config-store";
+import { useUserStore } from "@/stores/use-user-store";
 import { directProtocolAdapters } from "./protocols/direct-registry";
 import { isPlainRecord, readPath, readString } from "./protocols/shared";
 import type { DirectProtocolAdapter, DirectVideoResponse } from "./protocols/types";
@@ -29,12 +30,10 @@ export async function autoDLReferenceURL(reference: ReferenceImage | ReferenceVi
     const storedUrl = await storedReferenceURL(reference.storageKey);
     if (storedUrl) return storedUrl;
     if (reference.storageKey?.startsWith("server:")) throw new Error("AutoDL 参考素材需要云存储提供可公开访问的地址");
-    const source = "dataUrl" in reference
-        ? await resolveImageUrl(reference.storageKey, reference.dataUrl || reference.url || "")
-        : await resolveMediaUrl(reference.storageKey, reference.url);
+    const source = "dataUrl" in reference ? await resolveImageUrl(reference.storageKey, reference.dataUrl || reference.url || "") : await resolveMediaUrl(reference.storageKey, reference.url);
     if (!source) throw new Error("参考素材不可用");
     const uploaded = await uploadRemoteMediaToServer(source, reference.name || "reference");
-    const url = publicReferenceURL(uploaded.url) || await storedReferenceURL(uploaded.storageKey);
+    const url = publicReferenceURL(uploaded.url) || (await storedReferenceURL(uploaded.storageKey));
     if (!url) throw new Error("AutoDL 参考素材需要云存储提供可公开访问的地址");
     return url;
 }
@@ -116,12 +115,12 @@ async function prepareDirectRequest(config: AiConfig, provider: DirectAIProvider
     const channel = requireDirectChannel(config);
     const serialized = await serializeDirectBody(body);
     assertSafeDirectBody(serialized.body);
-    const plan = await apiPost<DirectRequestPlan>("/api/ai/direct-request", {
-        channel: { protocol: channel.protocol, baseUrl: channel.baseUrl },
+    const plan = await apiPost<DirectRequestPlan>(channel.configured ? "/api/v1/ai/direct-request" : "/api/ai/direct-request", {
+        channel: { id: channel.id, protocol: channel.protocol, baseUrl: channel.baseUrl },
         model: config.model || config.videoModel,
         endpoint,
         body: serialized.body,
-    });
+    }, channel.configured ? channel.apiKey : undefined);
     if (plan.provider !== provider) throw new Error("前后端渠道识别结果不一致");
     const protocol = directProtocolAdapters[provider];
     const requestBody = await uploadAndReplaceReferences(protocol, plan, serialized.references, channel.apiKey);
@@ -129,9 +128,16 @@ async function prepareDirectRequest(config: AiConfig, provider: DirectAIProvider
 }
 
 function requireDirectChannel(config: AiConfig) {
+    if (config.channelMode === "remote") {
+        const channelId = channelIdForActiveModel(config);
+        const channel = config.publicChannels.find((item) => item.id === channelId) || config.publicChannels.find((item) => (item.models || []).includes(config.model));
+        const token = useUserStore.getState().token;
+        if (!channel?.id || !channel.baseUrl?.trim() || !token) throw new Error(!token ? "请先登录后再使用后台渠道" : "后台模型渠道不可用");
+        return { id: channel.id, protocol: channel.protocol || "openai", baseUrl: channel.baseUrl, apiKey: token, configured: true };
+    }
     const channel = localChannelForActiveModel(config);
-    if (!channel?.baseUrl.trim() || !channel.apiKey.trim()) throw new Error("本地渠道地址或 API Key 不能为空");
-    return channel;
+    if (!channel?.baseUrl.trim() || (channel.protocol !== "comfyui" && !channel.apiKey.trim())) throw new Error(channel?.protocol === "comfyui" ? "ComfyUI 地址不能为空" : "本地渠道地址或 API Key 不能为空");
+    return { ...channel, configured: false };
 }
 
 async function serializeDirectBody(body: DirectRequestBody): Promise<SerializedDirectBody> {
@@ -252,15 +258,17 @@ function assertSafeDirectBody(value: unknown) {
 async function uploadAndReplaceReferences(protocol: DirectProtocolAdapter, plan: DirectRequestPlan, references: DirectReference[], apiKey: string) {
     const retained = references.filter((reference) => containsDirectMarker(plan.body, reference.marker));
     const uploaded = new Map<string, string>();
-    await Promise.all(retained.map(async (reference) => {
-        const spec = plan.uploads?.[reference.kind];
-        if (!spec && plan.provider === "ark" && reference.kind === "image") {
-            uploaded.set(reference.marker, await readFileAsDataUrl(reference.file));
-            return;
-        }
-        if (!spec) throw new Error(`${plan.provider} 不支持上传本地${directReferenceKindName(reference.kind)}`);
-        uploaded.set(reference.marker, await uploadDirectReference(protocol, spec, reference.file, apiKey));
-    }));
+    await Promise.all(
+        retained.map(async (reference) => {
+            const spec = plan.uploads?.[reference.kind];
+            if (!spec && plan.provider === "ark" && reference.kind === "image") {
+                uploaded.set(reference.marker, await readFileAsDataUrl(reference.file));
+                return;
+            }
+            if (!spec) throw new Error(`${plan.provider} 不支持上传本地${directReferenceKindName(reference.kind)}`);
+            uploaded.set(reference.marker, await uploadDirectReference(protocol, spec, reference.file, apiKey));
+        }),
+    );
     const replaced = replaceDirectMarkers(plan.body, uploaded);
     if (containsAnyDirectMarker(replaced)) throw new Error("参考素材地址替换失败");
     return replaced;
@@ -317,7 +325,7 @@ async function requestDirectJSON(protocol: DirectProtocolAdapter, url: string, a
         const response = await fetch(url, {
             method: body === undefined ? "GET" : "POST",
             headers: {
-                Authorization: protocol.rawAuthorization ? apiKey : `Bearer ${apiKey}`,
+                Authorization: url.startsWith("/api/v1/") || !protocol.rawAuthorization ? `Bearer ${apiKey}` : apiKey,
                 ...(body === undefined ? {} : { "Content-Type": contentType || "application/json" }),
             },
             ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -345,6 +353,10 @@ async function readDirectResponse(response: Response): Promise<unknown> {
 
 function directPollURL(config: AiConfig, protocol: DirectProtocolAdapter, taskId: string) {
     const channel = requireDirectChannel(config);
+    if (channel.configured && channel.protocol === "comfyui") {
+        const query = new URLSearchParams({ channelId: channel.id, model: config.model || config.videoModel });
+        return `/api/v1/ai/comfyui/tasks/${encodeURIComponent(taskId)}?${query}`;
+    }
     if (protocol.pollURL) return protocol.pollURL(channel.baseUrl, taskId);
     return buildApiUrl(channel.baseUrl, protocol.pollPath(taskId));
 }

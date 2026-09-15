@@ -33,6 +33,24 @@ func canvasProjectFromRaw(
 		metadata.UpdatedAt == "" {
 		return model.CanvasProject{}, errors.New("画布项目数据无效")
 	}
+	episode, err := repository.FindDramaEpisodeByCanvas(strings.TrimSpace(userID), metadata.ID)
+	if err != nil {
+		return model.CanvasProject{}, err
+	}
+	var data map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return model.CanvasProject{}, err
+	}
+	if episode != nil {
+		data["dramaProjectId"], _ = json.Marshal(episode.ProjectID)
+		data["dramaEpisodeId"], _ = json.Marshal(episode.ID)
+		raw, err = json.Marshal(data)
+		if err != nil {
+			return model.CanvasProject{}, err
+		}
+	} else if len(data["dramaProjectId"]) > 0 || len(data["dramaEpisodeId"]) > 0 {
+		return model.CanvasProject{}, safeMessageError{message: "画布没有有效的分集关联，请从漫剧工作台打开"}
+	}
 
 	return model.CanvasProject{
 		UserID:      strings.TrimSpace(userID),
@@ -88,7 +106,7 @@ func SaveCurrentUserCanvasProject(
 	}
 	saved, err := repository.SaveUserCanvasProject(project)
 	if err != nil {
-		return nil, err
+		return nil, canvasSaveError(err)
 	}
 	if saved.DeletedAt != "" {
 		return nil, errors.New("画布项目已删除")
@@ -116,9 +134,16 @@ func SyncCurrentUserCanvasProjects(
 
 	saved, err := repository.SaveUserCanvasProjects(user.ID, projects)
 	if err != nil {
-		return nil, err
+		return nil, canvasSaveError(err)
 	}
 	return canvasProjectData(saved), nil
+}
+
+func canvasSaveError(err error) error {
+	if errors.Is(err, repository.ErrDramaCanvasRevisionConflict) {
+		return safeMessageError{message: "分集画布已被其他操作更新，本次修改未覆盖已保存内容；请保留本地草稿并重新加载画布后重试"}
+	}
+	return err
 }
 
 func DeleteCurrentUserCanvasProjects(
@@ -128,6 +153,13 @@ func DeleteCurrentUserCanvasProjects(
 	user, ok := UserFromContext(ctx)
 	if !ok || user.ID == "" {
 		return errors.New("请先登录")
+	}
+	linked, err := repository.HasDramaEpisodeCanvases(user.ID, projectIDs)
+	if err != nil {
+		return err
+	}
+	if linked {
+		return safeMessageError{message: "分集画布不能直接删除，请保留漫剧项目关联"}
 	}
 
 	for _, projectID := range projectIDs {

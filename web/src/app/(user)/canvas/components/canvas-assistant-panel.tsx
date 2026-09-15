@@ -43,6 +43,7 @@ import { useThemeStore } from "@/stores/use-theme-store";
 import { createCanvasAgentState, runCanvasAgent } from "../agent/canvas-agent-runtime";
 import { useCodexAgent } from "../agent/use-codex-agent";
 import type { CanvasAgentContext } from "../agent/canvas-agent-context";
+import { AI_DRAMA_PRODUCTION_SKILL_BLOCKER, AI_DRAMA_PRODUCTION_SKILL_ID, hasMandatoryDramaSkill, withMandatoryDramaSkill } from "../agent/canvas-agent-mandatory-skills";
 import type { CanvasAgentAction, CanvasAgentToolResult } from "../agent/canvas-agent-tools";
 import {
     MAX_CANVAS_AGENT_SKILLS,
@@ -81,6 +82,7 @@ const ASSISTANT_NODE_STATUS_COLOR: Record<string, string> = {
 
 type CanvasAssistantPanelProps = {
     canvasId: string;
+    formalDramaEpisode?: boolean;
     nodes: CanvasNodeData[];
     selectedNodeIds: Set<string>;
     referenceNodeClick: { nodeId: string | null; version: number };
@@ -113,6 +115,7 @@ type CodexConfirmation = { id: string; title: string; content: ReactNode; action
 
 export function CanvasAssistantPanel({
     canvasId,
+    formalDramaEpisode = false,
     nodes,
     selectedNodeIds,
     referenceNodeClick,
@@ -158,6 +161,7 @@ export function CanvasAssistantPanel({
     const [removedReferenceIds, setRemovedReferenceIds] = useState<Set<string>>(new Set());
     const [pendingDelete, setPendingDelete] = useState<PendingDeleteConfirmation | null>(null);
     const [codexConfirmations, setCodexConfirmations] = useState<CodexConfirmation[]>([]);
+    const [mandatoryDramaSkillChecked, setMandatoryDramaSkillChecked] = useState(false);
     const [initialSession] = useState(() => createSession(mode));
     const lastSessionIds = useRef<Partial<Record<"api" | "codex", string>>>({});
     const drafts = useRef<Partial<Record<"api" | "codex", { prompt: string; references: string[]; skills: CanvasAgentSkillSelection[] }>>>({});
@@ -167,6 +171,18 @@ export function CanvasAssistantPanel({
     const resolvedActiveSessionId = visibleSessions.find((session) => session.id === rememberedId)?.id || visibleSessions[0]?.id || null;
     const sessionsRef = useRef<CanvasAssistantSession[]>(safeSessions);
     const activeSessionIdRef = useRef<string | null>(resolvedActiveSessionId);
+
+    useEffect(() => {
+        if (!formalDramaEpisode) {
+            setMandatoryDramaSkillChecked(false);
+            return;
+        }
+        let active = true;
+        void useAgentSkillStore.getState().loadSkills().catch(() => undefined).finally(() => {
+            if (active) setMandatoryDramaSkillChecked(true);
+        });
+        return () => { active = false; };
+    }, [formalDramaEpisode]);
 
     useEffect(() => {
         sessionsRef.current = safeSessions;
@@ -184,6 +200,7 @@ export function CanvasAssistantPanel({
     const messages = activeSession?.messages || [];
     const hasMessages = messages.length > 0;
     const selectedNodeKey = useMemo(() => Array.from(selectedNodeIds).sort().join(","), [selectedNodeIds]);
+    const mandatoryDramaSkillMissing = formalDramaEpisode && mandatoryDramaSkillChecked && !hasMandatoryDramaSkill(useAgentSkillStore.getState().systemSkills);
 
     const resourceReferences = useMemo(() => buildAllCanvasResourceReferences(nodes), [nodes]);
     const resourceReferenceById = useMemo(() => new Map(resourceReferences.map((reference) => [reference.nodeId, reference])), [resourceReferences]);
@@ -405,7 +422,8 @@ export function CanvasAssistantPanel({
         if (abortRef.current) return;
         if (mode === "codex" && codex.status !== "ready") { setView("connect"); appMessage.info("请先连接本地 Codex 服务"); return; }
         const session = activeSession || createSession(mode);
-        const activeSkills = skillOverride !== undefined ? skillOverride || [] : selectedSkills.length ? selectedSkills : session.activeSkills || [];
+        const selectedActiveSkills = skillOverride !== undefined ? skillOverride || [] : selectedSkills.length ? selectedSkills : session.activeSkills || [];
+        const activeSkills = withMandatoryDramaSkill(selectedActiveSkills, formalDramaEpisode);
         let activeSkillContents: Array<{ id: string; source: CanvasAgentSkillSelection["source"]; name: string; content: string; hasFiles?: boolean }> = [];
 
         if (activeSkills.length) {
@@ -422,7 +440,7 @@ export function CanvasAssistantPanel({
             const latestSkills = activeSkills.map((selected) => availableSkills.find((skill) => skill.id === selected.id && skill.source === selected.source && skill.enabled));
             const unavailableSkill = activeSkills.find((_, index) => !latestSkills[index]);
             if (unavailableSkill) {
-                appMessage.error(`Skill「${unavailableSkill.name}」已不可用，请重新选择`);
+                appMessage.error(unavailableSkill.id === AI_DRAMA_PRODUCTION_SKILL_ID ? AI_DRAMA_PRODUCTION_SKILL_BLOCKER : `Skill「${unavailableSkill.name}」已不可用，请重新选择`);
                 return;
             }
             activeSkillContents = latestSkills.map((skill) => ({ id: skill!.id, source: skill!.source, name: skill!.name, content: skill!.content, hasFiles: skill!.hasFiles }));
@@ -673,6 +691,7 @@ export function CanvasAssistantPanel({
                         {mode === "codex" ? codexConfirmations.map((confirmation) => <AssistantPanelCard key={confirmation.id} title={confirmation.title} actions={confirmation.actions}>{confirmation.content}</AssistantPanelCard>) : null}
                     </div>
                 ) : null}
+                {mandatoryDramaSkillMissing ? <div role="alert" className="mx-3 mb-2 border-l-2 px-3 py-2 text-xs leading-5" style={{ borderColor: "#ef4444", color: theme.node.text, background: theme.toolbar.panel }}>{AI_DRAMA_PRODUCTION_SKILL_BLOCKER}</div> : null}
                 {view === "chat" && !showCodexConnection ? (
                     <CanvasAssistantComposer
                         prompt={prompt}

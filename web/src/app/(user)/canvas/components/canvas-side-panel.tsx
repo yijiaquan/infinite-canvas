@@ -13,6 +13,7 @@ import { canvasThemes, type CanvasTheme } from "@/lib/canvas-theme";
 import { cn } from "@/lib/utils";
 import { fetchAssetLibrary, type AssetLibraryItem } from "@/services/api/assets";
 import { fetchPrompts, type Prompt } from "@/services/api/prompts";
+import { listDramaAssets, type DramaAsset, type DramaAssetVersion } from "@/services/api/drama-assets";
 import { useAssetStore, type Asset } from "@/stores/use-asset-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 
@@ -41,6 +42,8 @@ type Props = {
     onAssetDragStart: (payload: InsertAssetPayload) => void;
     onAssetDragEnd: () => void;
     onInsertAsset: (payload: InsertAssetPayload) => void;
+    dramaToken?: string;
+    dramaProjectId?: string;
 };
 
 const NODE_TYPE_ICON = {
@@ -91,7 +94,7 @@ const STATUS_COLOR: Record<string, string> = {
     error: "#ef4444",
 };
 
-export function CanvasSidePanel({ nodes, selectedNodeIds, open, width, onWidthChange, onFocusNode, onAssetDragStart, onAssetDragEnd, onInsertAsset }: Props) {
+export function CanvasSidePanel({ nodes, selectedNodeIds, open, width, onWidthChange, onFocusNode, onAssetDragStart, onAssetDragEnd, onInsertAsset, dramaToken = "", dramaProjectId = "" }: Props) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const [tab, setTab] = useState<PanelTab>("canvas");
     const [mounted, setMounted] = useState(open);
@@ -154,7 +157,7 @@ export function CanvasSidePanel({ nodes, selectedNodeIds, open, width, onWidthCh
                     {tab === "canvas" ? (
                         <CanvasNodesTab nodes={nodes} selectedNodeIds={selectedNodeIds} onFocusNode={onFocusNode} theme={theme} />
                     ) : tab === "assets" ? (
-                        <CanvasAssetsTab theme={theme} onAssetDragStart={onAssetDragStart} onAssetDragEnd={onAssetDragEnd} />
+                        <CanvasAssetsTab theme={theme} dramaToken={dramaToken} dramaProjectId={dramaProjectId} onAssetDragStart={onAssetDragStart} onAssetDragEnd={onAssetDragEnd} />
                     ) : (
                         <CanvasPromptsTab theme={theme} onInsert={onInsertAsset} />
                     )}
@@ -263,17 +266,21 @@ function CanvasNodesTab({ nodes, selectedNodeIds, onFocusNode, theme }: { nodes:
     );
 }
 
-const CanvasAssetsTab = memo(function CanvasAssetsTab({ theme, onAssetDragStart, onAssetDragEnd }: { theme: CanvasTheme; onAssetDragStart: (payload: InsertAssetPayload) => void; onAssetDragEnd: () => void }) {
-    const [source, setSource] = useState<"mine" | "library">("mine");
+const CanvasAssetsTab = memo(function CanvasAssetsTab({ theme, dramaToken, dramaProjectId, onAssetDragStart, onAssetDragEnd }: { theme: CanvasTheme; dramaToken: string; dramaProjectId: string; onAssetDragStart: (payload: InsertAssetPayload) => void; onAssetDragEnd: () => void }) {
+    const hasProjectAssets = Boolean(dramaToken && dramaProjectId);
+    const [source, setSource] = useState<"project" | "mine" | "library">(hasProjectAssets ? "project" : "mine");
     const [formOpen, setFormOpen] = useState(false);
 
     return (
         <div className="flex h-full flex-col">
             <div className="flex items-center gap-4 px-3 pb-2 pt-1">
+                {hasProjectAssets ? <AssetSourceTab label="项目素材" active={source === "project"} theme={theme} onClick={() => setSource("project")} /> : null}
                 <AssetSourceTab label="我的素材" active={source === "mine"} theme={theme} onClick={() => setSource("mine")} />
                 <AssetSourceTab label="素材库" active={source === "library"} theme={theme} onClick={() => setSource("library")} />
             </div>
-            {source === "mine" ? (
+            {source === "project" && hasProjectAssets ? (
+                <ProjectAssetsTab token={dramaToken} projectId={dramaProjectId} theme={theme} onAssetDragStart={onAssetDragStart} onAssetDragEnd={onAssetDragEnd} />
+            ) : source === "mine" ? (
                 <MyAssetsTab theme={theme} onAdd={() => setFormOpen(true)} onAssetDragStart={onAssetDragStart} onAssetDragEnd={onAssetDragEnd} />
             ) : (
                 <LibraryAssetsTab theme={theme} onAssetDragStart={onAssetDragStart} onAssetDragEnd={onAssetDragEnd} />
@@ -282,6 +289,43 @@ const CanvasAssetsTab = memo(function CanvasAssetsTab({ theme, onAssetDragStart,
         </div>
     );
 });
+
+function ProjectAssetsTab({ token, projectId, theme, onAssetDragStart, onAssetDragEnd }: { token: string; projectId: string; theme: CanvasTheme; onAssetDragStart: (payload: InsertAssetPayload) => void; onAssetDragEnd: () => void }) {
+    const [keyword, setKeyword] = useState("");
+    const [type, setType] = useState("");
+    const query = useQuery({ queryKey: ["canvas-project-assets", token, projectId], queryFn: () => listDramaAssets(token, projectId), enabled: Boolean(token && projectId), retry: false });
+    const items = useMemo(() => {
+        const versions = new Map((query.data?.versions || []).map((version) => [version.id, version]));
+        const search = keyword.trim().toLowerCase();
+        return (query.data?.assets || []).flatMap((asset) => {
+            if (asset.archived || !asset.adoptedVersionId) return [];
+            const version = versions.get(asset.adoptedVersionId);
+            const kind = projectAssetMediaKind(asset, version);
+            if (!version || !kind || (type && kind !== type) || (search && ![asset.title, asset.description].join(" ").toLowerCase().includes(search))) return [];
+            return [{ asset, version, kind }];
+        });
+    }, [keyword, query.data, type]);
+    return <>
+        <div className="flex items-center gap-4 px-3 pb-2">{ASSET_TYPE_OPTIONS.filter((option) => option.value !== "text").map((option) => <AssetSourceTab key={option.value || "all"} label={option.label} active={type === option.value} theme={theme} onClick={() => setType(option.value)} />)}</div>
+        <div className="px-3 pb-2"><Input size="small" allowClear prefix={<Search className="size-3.5 text-stone-400" />} placeholder="搜索项目素材" value={keyword} onChange={(event) => setKeyword(event.target.value)} /></div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+            {query.isLoading ? <div className="flex justify-center pt-16"><Spin size="small" /></div> : items.length ? <div className="grid grid-cols-2 gap-2 px-1 pt-1">{items.map(({ asset, version, kind }) => <DraggableAssetCard key={version.id} theme={theme} title={asset.title} payload={projectAssetPayload(asset, version, kind)} kind={kind} imageUrl={kind === "audio" ? "" : `/api/files/${version.storageId}/content`} text="" onAssetDragStart={onAssetDragStart} onAssetDragEnd={onAssetDragEnd} />)}</div> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无已采用的项目素材" className="pt-16" />}
+        </div>
+    </>;
+}
+
+function projectAssetMediaKind(asset: DramaAsset, version?: DramaAssetVersion): "image" | "video" | "audio" | null {
+    const family = version?.mimeType?.split("/")[0];
+    if (family === "image" || family === "video" || family === "audio") return family;
+    return asset.kind === "voice" ? "audio" : asset.kind === "character" || asset.kind === "scene" || asset.kind === "prop" ? "image" : null;
+}
+
+function projectAssetPayload(asset: DramaAsset, version: DramaAssetVersion, kind: "image" | "video" | "audio"): InsertAssetPayload {
+    const url = `/api/files/${version.storageId}/content`;
+    const shared = { title: asset.title, storageKey: `server:${version.storageId}`, assetId: asset.id, mimeType: version.mimeType, source: "project" as const };
+    if (kind === "image") return { kind, dataUrl: url, ...shared };
+    return { kind, url, ...shared };
+}
 
 function AssetSourceTab({ label, active, theme, onClick }: { label: string; active: boolean; theme: CanvasTheme; onClick: () => void }) {
     return (

@@ -3,6 +3,19 @@ title: 数据库说明
 description: 当前后端主要数据表与字段说明
 ---
 
+## 漫剧制作基础表
+
+- `drama_clips`：`id` 主键，`user_id`／`project_id`／`episode_id` 索引，`title`、`scene`、`position`、`summary`、`entry_state`、`exit_state`、`shots`（text，GORM JSON serializer）、`revision`、`archived`、`created_at`、`updated_at`。镜头数组使用稳定镜头 ID，时长保存小数秒；归档不删除内容。本表不重复保存生成节点提示词及参数。
+
+- `drama_projects`：`id` 主键、`user_id` 归属索引、`title`、`source_type`、`source_text`（text）、`adaptation`（text）、`global_style`（text）、`revision`、`created_at`、`updated_at`。
+- `drama_episodes`：`id` 主键、`user_id` 归属索引、`project_id` 项目索引、`canvas_id` 唯一索引、`title`、`position`、`script`（text）、`revision`、`created_at`、`updated_at`。
+- `drama_projects.generation_defaults` 保存 image/video 两类显式参数；省略字段保留，提交该字段整体替换，不隐式填充生成器默认值。
+- `drama_assets` / `drama_asset_versions`：项目资产档案、父级造型、固定默认声音版本、采用版本与归档状态；版本引用现有 `storage_objects`，不复制媒体到另一套库。
+- `drama_bindings`：每 Clip、阶段独立 CAS 版本，固定资产/版本/用途/顺序/实际说话者。可视连线不代替真实绑定顺序。
+- `drama_runs`：持久队列、冻结输入、执行图、上游ID、状态及持久输出；requestId按用户幂等。秘密及内部请求体不出现在公共运行响应。
+- `drama_adoptions`：按Clip与媒体类型保存采用版本、语义指纹和采用版本号；响应动态计算needsReview。
+- 新建分集与现有 `canvas_projects` 同事务创建；版本从 1 递增。专用样本导入仅创建独立副本，不写回旧项目。接口见 [漫剧项目与分集](drama-projects.md)。
+
 # 数据库说明
 
 本文档只记录后端当前已经使用的主要数据表。
@@ -34,6 +47,14 @@ description: 当前后端主要数据表与字段说明
 - `canvas_projects`
 - `user_configs`
 - `storage_objects`
+- `drama_projects`
+- `drama_episodes`
+- `drama_clips`
+- `drama_assets`
+- `drama_asset_versions`
+- `drama_bindings`
+- `drama_runs`
+- `drama_adoptions`
 
 后续新增表时再同步补充本文档，未实际使用的规划表不提前写入。
 
@@ -307,6 +328,7 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 | `user_id` | string | 所属用户，与 `id` 组成主键 |
 | `id` | string | 画布项目 ID |
 | `project_data` | text | 完整 `CanvasProject` JSON |
+| `drama_revision` | int64 | 正式分集画布并发版本，新建为1；保存时与 JSON 的 dramaRevision 校验，成功递增。普通画布不使用 |
 | `created_at` | string | 项目创建时间 |
 | `updated_at` | string | 项目更新时间 |
 | `deleted_at` | string | 软删除时间，空字符串表示未删除；超过 7 天由启动时和每天定时任务物理清理 |

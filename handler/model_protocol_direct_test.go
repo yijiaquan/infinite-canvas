@@ -105,7 +105,7 @@ func TestModelProtocolRequestGoldens(t *testing.T) {
 				Channel: directAIChannelInput{Protocol: test.protocol, BaseURL: "https://upstream.invalid"},
 				Model:   test.model, Endpoint: endpoint, Body: protocolJSON(t, test.body),
 			}
-			plan, err := prepareDirectAIRequest(input)
+			plan, err := prepareDirectAIRequest(input, "")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -155,7 +155,7 @@ func TestModelProtocolDirectSecurityContract(t *testing.T) {
 			_, err := prepareDirectAIRequest(directAIRequestInput{
 				Channel: directAIChannelInput{Protocol: test.protocol, BaseURL: baseURL},
 				Model:   test.model, Endpoint: endpoint, Body: test.body,
-			})
+			}, "")
 			if err == nil || err.Error() != test.want {
 				t.Fatalf("got error %v, want %q", err, test.want)
 			}

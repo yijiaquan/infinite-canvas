@@ -1,0 +1,113 @@
+package repository
+
+import (
+	"encoding/json"
+	"errors"
+	"github.com/tigerowo/infinite-canvas/model"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+	"strings"
+)
+
+func GetDramaBinding(u, p, e, c, stage string) (model.DramaBinding, error) {
+	value := model.DramaBinding{UserID: u, ProjectID: p, EpisodeID: e, ClipID: c, Stage: stage, References: []model.DramaBindingReference{}}
+	if err := DramaRunScope(u, p, e, c); err != nil {
+		return value, err
+	}
+	db, err := DB()
+	if err != nil {
+		return value, err
+	}
+	err = db.Where("user_id = ? AND clip_id = ? AND stage = ?", u, c, stage).First(&value).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		err = nil
+	}
+	return value, err
+}
+func SaveDramaBinding(value model.DramaBinding, expected int64) (model.DramaBinding, error) {
+	db, err := DB()
+	if err != nil {
+		return value, err
+	}
+	err = db.Transaction(func(tx *gorm.DB) error {
+		var clip model.DramaClip
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND user_id = ? AND project_id = ? AND episode_id = ?", value.ClipID, value.UserID, value.ProjectID, value.EpisodeID).First(&clip).Error; err != nil {
+			return err
+		}
+		if clip.Archived {
+			return errors.New("回收站中的 Clip 不能修改输入")
+		}
+		current := model.DramaBinding{References: []model.DramaBindingReference{}}
+		lookup := tx.Where("user_id = ? AND clip_id = ? AND stage = ?", value.UserID, value.ClipID, value.Stage).First(&current).Error
+		if lookup != nil && !errors.Is(lookup, gorm.ErrRecordNotFound) {
+			return lookup
+		}
+		if current.Revision != expected {
+			return ErrDramaRevisionConflict
+		}
+		for _, input := range value.References {
+			var asset model.DramaAsset
+			var version model.DramaAssetVersion
+			var storage model.StorageObject
+			if err := tx.Where("id = ? AND user_id = ? AND project_id = ?", input.AssetID, value.UserID, value.ProjectID).First(&asset).Error; err != nil {
+				return err
+			}
+			if asset.Archived {
+				kept := false
+				for _, old := range current.References {
+					if old == input {
+						kept = true
+					}
+				}
+				if !kept {
+					return errors.New("已归档资产只能保留原有引用")
+				}
+			}
+			if err := tx.Where("id = ? AND asset_id = ?", input.VersionID, input.AssetID).First(&version).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("id = ? AND created_by = ? AND deleted_at = ?", version.StorageID, value.UserID, "").First(&storage).Error; err != nil {
+				return err
+			}
+			kind := "image/"
+			if input.Role == "voice" {
+				kind = "audio/"
+			}
+			if input.Role == "video_reference" {
+				kind = "video/"
+			}
+			if !strings.HasPrefix(storage.MimeType, kind) {
+				return errors.New("输入用途与媒体类型不一致")
+			}
+			if input.Role == "voice" {
+				found := false
+				for _, shot := range clip.Shots {
+					if strings.TrimSpace(shot.Speaker) == input.Speaker && strings.TrimSpace(shot.Dialogue) != "" {
+						found = true
+					}
+				}
+				if !found {
+					return errors.New("声音必须绑定本 Clip 实际说话者")
+				}
+			}
+		}
+		value.Revision = expected + 1
+		if errors.Is(lookup, gorm.ErrRecordNotFound) {
+			return tx.Create(&value).Error
+		}
+		value.ID = current.ID
+		raw, err := json.Marshal(value.References)
+		if err != nil {
+			return err
+		}
+		result := tx.Model(&model.DramaBinding{}).Where("id = ? AND revision = ?", current.ID, expected).Updates(map[string]any{"references": string(raw), "revision": value.Revision, "updated_at": value.UpdatedAt})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return ErrDramaRevisionConflict
+		}
+		return nil
+	})
+	return value, err
+}

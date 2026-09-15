@@ -5,13 +5,19 @@ import "encoding/json"
 type SettingKey string
 
 const (
-	SettingKeyPublic  SettingKey = "public"
-	SettingKeyPrivate SettingKey = "private"
+	SettingKeyPublic                 SettingKey = "public"
+	SettingKeyPrivate                SettingKey = "private"
 	SettingKeyAgentSkillsInitialized SettingKey = "agent-skills-initialized"
+	SettingKeyAIDramaProductionSkill SettingKey = "agent-skill-package:ai-drama-production"
 
 	StorageProviderTypeS3     = "s3"
 	StorageProviderTypeWebDAV = "webdav"
 )
+
+type AgentSkillPackageState struct {
+	Version int  `json:"version"`
+	Deleted bool `json:"deleted"`
+}
 
 // ModelChannel 模型渠道配置。
 type ModelChannel struct {

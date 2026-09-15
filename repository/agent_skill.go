@@ -89,6 +89,49 @@ func SaveAgentSkillPackage(item model.AgentSkill, files []model.AgentSkillFile) 
 	return item, err
 }
 
+func GetAgentSkillPackageState(key model.SettingKey) (model.AgentSkillPackageState, bool, error) {
+	db, err := DB()
+	if err != nil {
+		return model.AgentSkillPackageState{}, false, err
+	}
+	var item model.Setting
+	err = db.First(&item, "key = ?", key).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return model.AgentSkillPackageState{}, false, nil
+	}
+	if err != nil {
+		return model.AgentSkillPackageState{}, false, err
+	}
+	var state model.AgentSkillPackageState
+	if err := json.Unmarshal(item.Value, &state); err != nil {
+		return model.AgentSkillPackageState{}, false, err
+	}
+	return state, true, nil
+}
+
+func UpgradeManagedAgentSkillPackage(item model.AgentSkill, files []model.AgentSkillFile, key model.SettingKey, version int, current string) error {
+	db, err := DB()
+	if err != nil {
+		return err
+	}
+	return db.Transaction(func(tx *gorm.DB) error {
+		var existing model.AgentSkill
+		if err := tx.First(&existing, "id = ? AND source = ?", item.ID, model.AgentSkillSourceSystem).Error; err == nil {
+			item.Enabled = existing.Enabled
+			item.Sort = existing.Sort
+			item.CoverURL = existing.CoverURL
+			item.CoverStorageKey = existing.CoverStorageKey
+			item.CreatedAt = existing.CreatedAt
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		if err := saveAgentSkillPackage(tx, &item, files); err != nil {
+			return err
+		}
+		return saveAgentSkillPackageState(tx, key, model.AgentSkillPackageState{Version: version}, current)
+	})
+}
+
 func InitializeAgentSkills(items []model.AgentSkill, files [][]model.AgentSkillFile, current string) error {
 	if len(items) != len(files) {
 		return errors.New("Skill 与文件包数量不一致")
@@ -115,17 +158,41 @@ func DeleteUserAgentSkill(id string, userID string) error {
 	return db.Delete(&model.AgentSkill{}, "id = ? AND source = ? AND owner_user_id = ?", id, model.AgentSkillSourceUser, userID).Error
 }
 
-func DeleteSystemAgentSkill(id string) error {
+func DeleteSystemAgentSkill(id string, managedKey model.SettingKey, managedVersion int, current string) error {
 	db, err := DB()
 	if err != nil {
 		return err
 	}
 	return db.Transaction(func(tx *gorm.DB) error {
+		if managedKey != "" {
+			state := model.AgentSkillPackageState{Version: managedVersion, Deleted: true}
+			var setting model.Setting
+			if err := tx.First(&setting, "key = ?", managedKey).Error; err == nil {
+				var existing model.AgentSkillPackageState
+				if json.Unmarshal(setting.Value, &existing) == nil && existing.Version > state.Version {
+					state.Version = existing.Version
+				}
+			} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+			if err := saveAgentSkillPackageState(tx, managedKey, state, current); err != nil {
+				return err
+			}
+		}
 		if err := tx.Delete(&model.AgentSkillFile{}, "skill_id = ?", id).Error; err != nil {
 			return err
 		}
 		return tx.Delete(&model.AgentSkill{}, "id = ? AND source = ?", id, model.AgentSkillSourceSystem).Error
 	})
+}
+
+func saveAgentSkillPackageState(db *gorm.DB, key model.SettingKey, state model.AgentSkillPackageState, current string) error {
+	value, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	item := model.Setting{Key: key, Value: value, CreatedAt: current, UpdatedAt: current}
+	return db.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "key"}}, DoUpdates: clause.AssignmentColumns([]string{"value", "updated_at"})}).Create(&item).Error
 }
 
 func AgentSkillsInitialized() (bool, error) {

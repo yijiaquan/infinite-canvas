@@ -19,6 +19,10 @@ export const DEFAULT_CANVAS_AGENT_PANEL: CanvasSidePanelState = { open: false, w
 
 export type CanvasProject = {
     id: string;
+    dramaProjectId?: string;
+    dramaEpisodeId?: string;
+    dramaRevision?: number;
+    dramaPreparedClipIds?: string[];
     title: string;
     createdAt: string;
     updatedAt: string;
@@ -37,6 +41,8 @@ export type CanvasProject = {
 };
 
 type CanvasStore = {
+    saveErrors: Record<string, string>;
+    savingIds: string[];
     hydrated: boolean;
     projects: CanvasProject[];
     createProject: (title?: string, options?: { agentConfig?: CanvasAgentConfig; pendingAgentRequest?: CanvasPendingAgentRequest }) => string;
@@ -44,7 +50,7 @@ type CanvasStore = {
     openProject: (id: string) => CanvasProject | null;
     renameProject: (id: string, title: string) => void;
     deleteProjects: (ids: string[]) => void;
-    updateProject: (id: string, patch: Partial<Pick<CanvasProject, "nodes" | "connections" | "chatSessions" | "activeChatId" | "agentConfig" | "autoTitlePending" | "backgroundMode" | "showImageInfo" | "viewport" | "sidePanel" | "agentPanel" | "pendingAgentRequest">>) => void;
+    updateProject: (id: string, patch: Partial<Pick<CanvasProject, "nodes" | "connections" | "chatSessions" | "activeChatId" | "agentConfig" | "autoTitlePending" | "backgroundMode" | "showImageInfo" | "viewport" | "sidePanel" | "agentPanel" | "pendingAgentRequest" | "dramaPreparedClipIds">>) => void;
     syncWithRemote: (token: string, syncEnabled: boolean) => Promise<void>;
     setSyncEnabled: (enabled: boolean) => void;
 };
@@ -56,6 +62,42 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let queuedPersistState: PersistedCanvasState | null = null;
 let accountCanvasSyncEnabled = false;
 const projectSaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const dramaSaveRequests = new Map<string, Promise<void>>();
+
+export function flushDramaCanvasSave(id: string): Promise<void> {
+    const existing = dramaSaveRequests.get(id);
+    if (existing) return existing;
+    const token = useUserStore.getState().token;
+    const request = (async () => {
+        useCanvasStore.setState((state) => ({ savingIds: [...new Set([...state.savingIds, id])] }));
+        try {
+            while (token && useUserStore.getState().token === token) {
+                const submitted = useCanvasStore.getState().projects.find((item) => item.id === id);
+                if (!submitted?.dramaProjectId) return;
+                const saved = await saveCanvasProject(token, submitted);
+                if (useUserStore.getState().token !== token) return;
+                let changed = false;
+                useCanvasStore.setState((state) => {
+                    const current = state.projects.find((item) => item.id === id);
+                    if (!current) return {};
+                    changed = current !== submitted;
+                    const saveErrors = { ...state.saveErrors }; delete saveErrors[id];
+                    // Advance only the acknowledged version, never replace edits made during this request.
+                    return { saveErrors, projects: state.projects.map((item) => item.id === id ? { ...item, dramaRevision: saved.dramaRevision } : item) };
+                });
+                if (!changed) return;
+            }
+        } catch (cause) {
+            if (useUserStore.getState().token === token) useCanvasStore.setState((state) => ({ saveErrors: { ...state.saveErrors, [id]: cause instanceof Error ? cause.message : "画布保存失败，本地修改已保留" } }));
+            throw cause;
+        } finally {
+            if (useUserStore.getState().token === token) useCanvasStore.setState((state) => ({ savingIds: state.savingIds.filter((item) => item !== id) }));
+        }
+    })();
+    dramaSaveRequests.set(id, request);
+    void request.finally(() => { if (dramaSaveRequests.get(id) === request) dramaSaveRequests.delete(id); }).catch(() => undefined);
+    return request;
+}
 
 function waitForUserStoreHydration() {
     if (useUserStore.persist.hasHydrated()) return Promise.resolve();
@@ -75,7 +117,7 @@ function waitForUserStoreHydration() {
 
 function queueProjectSave(project: CanvasProject) {
     const token = useUserStore.getState().token;
-    const syncEnabled = accountCanvasSyncEnabled;
+    const syncEnabled = accountCanvasSyncEnabled || !!project.dramaProjectId;
     const previous = projectSaveTimers.get(project.id);
     if (previous) clearTimeout(previous);
 
@@ -86,12 +128,13 @@ function queueProjectSave(project: CanvasProject) {
             if (
                 !token ||
                 !syncEnabled ||
-                !accountCanvasSyncEnabled ||
+                (!accountCanvasSyncEnabled && !project.dramaProjectId) ||
                 useUserStore.getState().token !== token
             ) {
                 return;
             }
-            void saveCanvasProject(token, project).catch(() => undefined);
+            if (project.dramaProjectId) void flushDramaCanvasSave(project.id).catch(() => undefined);
+            else void saveCanvasProject(token, project).catch(() => undefined);
         }, 400),
     );
 }
@@ -105,6 +148,16 @@ function cancelProjectSaves(ids: string[]) {
     });
 }
 
+export async function loadDramaCanvasServerVersion(id: string) {
+    const token = useUserStore.getState().token;
+    cancelProjectSaves([id]);
+    await dramaSaveRequests.get(id)?.catch(() => undefined);
+    const remote = (await listCanvasProjects(token)).find((project) => project.id === id && project.dramaProjectId);
+    if (useUserStore.getState().token !== token) throw new Error("登录状态已变化");
+    if (!remote) throw new Error("分集画布不存在");
+    return remote;
+}
+
 async function reconcileCanvasProjects(
     token: string,
     remoteProjects: CanvasProject[],
@@ -113,6 +166,7 @@ async function reconcileCanvasProjects(
     const remoteById = new Map(
         remoteProjects.map((project) => [project.id, project]),
     );
+    localProjects = localProjects.filter((project) => !project.dramaProjectId || remoteById.has(project.id));
     const missingProjects = localProjects.filter(
         (project) => !remoteById.has(project.id),
     );
@@ -132,6 +186,7 @@ async function reconcileCanvasProjects(
             )
         : mergeCanvasProjects(remoteProjects, existingLocalProjects);
 
+    if (useUserStore.getState().token !== token) return useCanvasStore.getState().projects;
     localProjects.forEach((project) => {
         const remote = remoteById.get(project.id);
         if (
@@ -165,6 +220,7 @@ const canvasStorage: PersistStorage<CanvasStore> = {
                     fetchUserConfig(token),
                     listCanvasProjects(token),
                 ]);
+                if (useUserStore.getState().token !== token) throw new Error("登录账号已变化");
                 accountCanvasSyncEnabled =
                     userConfig.syncCapabilities?.userData === true;
 
@@ -204,6 +260,14 @@ const canvasStorage: PersistStorage<CanvasStore> = {
                     );
                     return parsed;
                 }
+
+                // 分集画布属于登录账号，不受普通画布同步开关影响。
+                const dramaProjects = remoteProjects.filter((project) => project.dramaProjectId);
+                const remoteDramaIds = new Set(dramaProjects.map((project) => project.id));
+                const allowedLocal = localProjects.filter((project) => !project.dramaProjectId || remoteDramaIds.has(project.id));
+                const nextState = { projects: mergeCanvasProjects(dramaProjects, allowedLocal) };
+                queuedPersistState = nextState;
+                return { state: nextState, version: 0 } as StorageValue<CanvasStore>;
             } catch (error) {
                 console.error(
                     "Failed to hydrate canvas projects from remote",
@@ -213,6 +277,7 @@ const canvasStorage: PersistStorage<CanvasStore> = {
         }
 
         if (!localParsed) return null;
+        localParsed.state.projects = localParsed.state.projects.filter((project) => !project.dramaProjectId);
         queuedPersistState = localParsed.state as PersistedCanvasState;
         return localParsed;
     },
@@ -238,6 +303,8 @@ const canvasStorage: PersistStorage<CanvasStore> = {
 export const useCanvasStore = create<CanvasStore>()(
     persist(
         (set, get) => ({
+            saveErrors: {},
+            savingIds: [],
             hydrated: false,
             projects: [],
             createProject: (title = "未命名画布", options) => {
@@ -339,22 +406,30 @@ export const useCanvasStore = create<CanvasStore>()(
             },
             syncWithRemote: async (token, syncEnabled) => {
                 accountCanvasSyncEnabled = syncEnabled;
-                if (!syncEnabled) return;
-                const localProjects = get().projects;
+                if (!token) return;
                 const remoteProjects = await listCanvasProjects(token).catch(
                     () => null,
                 );
-                if (!remoteProjects) return;
-                const projects = await reconcileCanvasProjects(
+                if (!remoteProjects || useUserStore.getState().token !== token) return;
+                const localProjects = get().projects;
+                const remoteDrama = remoteProjects.filter((project) => project.dramaProjectId);
+                const dramaIds = new Set(remoteDrama.map((project) => project.id));
+                const projects = syncEnabled ? await reconcileCanvasProjects(
                     token,
                     remoteProjects,
                     localProjects,
-                );
+                ) : mergeCanvasProjects(remoteDrama, localProjects.filter((project) => !project.dramaProjectId || dramaIds.has(project.id)));
+                if (useUserStore.getState().token !== token) return;
                 if (saveTimer) {
                     clearTimeout(saveTimer);
                     saveTimer = null;
                 }
-                const nextState = { projects };
+                const latest = get().projects;
+                const original = new Map(localProjects.map((project) => [project.id, project]));
+                const changed = latest.filter((project) => original.get(project.id) !== project);
+                const removed = new Set(localProjects.filter((project) => !latest.some((item) => item.id === project.id)).map((project) => project.id));
+                const changedIds = new Set(changed.map((project) => project.id));
+                const nextState = { projects: [...changed, ...projects.filter((project) => !changedIds.has(project.id) && !removed.has(project.id))] };
                 queuedPersistState = nextState;
                 set(nextState);
                 await localForageStorage.setItem(
@@ -380,6 +455,18 @@ export const useCanvasStore = create<CanvasStore>()(
     ),
 );
 
+// 切换登录会话后立即移除上一账号的分集画布。
+useUserStore.subscribe((state, previous) => {
+    if (state.token === previous.token) return;
+    const projects = useCanvasStore.getState().projects;
+    const dramaProjects = projects.filter((project) => project.dramaProjectId);
+    cancelProjectSaves(dramaProjects.map((project) => project.id));
+    accountCanvasSyncEnabled = false;
+    dramaSaveRequests.clear();
+    useCanvasStore.setState({ saveErrors: {}, savingIds: [] });
+    if (dramaProjects.length) useCanvasStore.setState({ projects: projects.filter((project) => !project.dramaProjectId) });
+});
+
 export function mergeCanvasProjects(
     remoteProjects: CanvasProject[],
     localProjects: CanvasProject[],
@@ -387,6 +474,8 @@ export function mergeCanvasProjects(
     const projects = new Map<string, CanvasProject>();
     [...localProjects, ...remoteProjects].forEach((project) => {
         const previous = projects.get(project.id);
+        // Do not rebase a locally open drama snapshot onto another editor's revision.
+        if (previous?.dramaProjectId && project.dramaProjectId && previous.dramaRevision !== project.dramaRevision) return;
         if (
             !previous ||
             Date.parse(project.updatedAt || "") >=

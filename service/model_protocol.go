@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"net/http"
 	"sort"
 	"strings"
@@ -15,6 +16,7 @@ const (
 	ModelChannelProtocolKIE      = "kie"
 	ModelChannelProtocol88API    = "88api"
 	ModelChannelProtocolAutoDL   = "autodl"
+	ModelChannelProtocolComfyUI  = "comfyui"
 	ModelChannelProtocolArk      = "ark"
 )
 
@@ -31,7 +33,7 @@ type modelProtocolRule struct {
 }
 
 var modelProtocolRegistry map[string]modelProtocolAdapter
-var modelProtocolIDs = []string{ModelChannelProtocolOpenAI, ModelChannelProtocolGemini, ModelChannelProtocolGrok2API, ModelChannelProtocolMiniMax, ModelChannelProtocolAPIMart, ModelChannelProtocolKIE, ModelChannelProtocolMiMo, ModelChannelProtocol88API, ModelChannelProtocolAutoDL, ModelChannelProtocolArk}
+var modelProtocolIDs = []string{ModelChannelProtocolOpenAI, ModelChannelProtocolGemini, ModelChannelProtocolGrok2API, ModelChannelProtocolMiniMax, ModelChannelProtocolAPIMart, ModelChannelProtocolKIE, ModelChannelProtocolMiMo, ModelChannelProtocol88API, ModelChannelProtocolAutoDL, ModelChannelProtocolComfyUI, ModelChannelProtocolArk}
 
 func init() {
 	compatible := modelProtocolAdapter{
@@ -104,6 +106,39 @@ func init() {
 	}
 	modelProtocolRegistry[ModelChannelProtocolAutoDL] = autodl
 
+	comfyui := compatible
+	comfyui.buildURL = func(channel model.ModelChannel, path string) string {
+		baseURL, err := ValidateComfyUIBaseURL(channel.BaseURL)
+		if err != nil {
+			return strings.TrimRight(strings.TrimSpace(channel.BaseURL), "/") + path
+		}
+		return baseURL + path
+	}
+	comfyui.setAuth = func(*http.Request, model.ModelChannel) {}
+	comfyui.models = func(channel model.ModelChannel) ([]string, error) {
+		workflows, err := ComfyUIWorkflows(channel.BaseURL)
+		models := make([]string, 0, len(workflows))
+		for _, workflow := range workflows {
+			if workflow.Ready {
+				models = append(models, workflow.ID)
+			}
+		}
+		return models, err
+	}
+	comfyui.testModel = func(channel model.ModelChannel, modelName string) (string, error) {
+		workflows, err := ComfyUIWorkflows(channel.BaseURL)
+		if err != nil {
+			return "", err
+		}
+		for _, workflow := range workflows {
+			if workflow.ID == strings.TrimSpace(modelName) && workflow.Ready {
+				return "ComfyUI 工作流可读取；实际参数以当前保存的工作流为准。", nil
+			}
+		}
+		return "", fmt.Errorf("ComfyUI 工作流不可用：%s", modelName)
+	}
+	modelProtocolRegistry[ModelChannelProtocolComfyUI] = comfyui
+
 	api88 := compatible
 	api88.testModel = func(model.ModelChannel, string) (string, error) {
 		return "88API 渠道不会调用聊天接口测试，请在对应创作台验证模型。", nil
@@ -119,6 +154,7 @@ func init() {
 
 // 发现模型、配置测试与生成的命中规则不同，分别保留原有优先级。
 var modelDiscoveryRules = []modelProtocolRule{
+	{ModelChannelProtocolComfyUI, func(channel model.ModelChannel, _ string) bool { return IsComfyUIChannel(channel.Protocol) }},
 	{ModelChannelProtocolAutoDL, func(channel model.ModelChannel, _ string) bool { return IsAutoDLChannel(channel) }},
 	{ModelChannelProtocolGemini, func(channel model.ModelChannel, _ string) bool { return IsGeminiChannel(channel) }},
 	{ModelChannelProtocolMiniMax, func(channel model.ModelChannel, _ string) bool { return IsMiniMaxChannel(channel) }},
@@ -128,6 +164,7 @@ var modelDiscoveryRules = []modelProtocolRule{
 }
 
 var modelConfigTestRules = []modelProtocolRule{
+	{ModelChannelProtocolComfyUI, func(channel model.ModelChannel, _ string) bool { return IsComfyUIChannel(channel.Protocol) }},
 	{ModelChannelProtocolAutoDL, func(channel model.ModelChannel, _ string) bool { return IsAutoDLChannel(channel) }},
 	{ModelChannelProtocolMiniMax, func(channel model.ModelChannel, _ string) bool { return IsMiniMaxChannel(channel) }},
 	{ModelChannelProtocol88API, func(channel model.ModelChannel, _ string) bool {

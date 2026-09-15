@@ -1,0 +1,396 @@
+{
+  "package": "ai-drama-production",
+  "version": 5,
+  "files": [
+    {
+      "source": ".agents/skills/ai-drama-audio-post-production/assets/templates/01-voice-bible.md",
+      "output": "references/ai-drama-audio-post-production/assets/templates/01-voice-bible.md",
+      "sha256": "6b1441e180156058ab9a5db6fac07a75f1596874d44b2f81583e767f8e9a4aeb"
+    },
+    {
+      "source": ".agents/skills/ai-drama-audio-post-production/references/ace-step-1-5-local-bgm.md",
+      "output": "references/ai-drama-audio-post-production/references/ace-step-1-5-local-bgm.md",
+      "sha256": "796676cf6fef82ec11d0ffa55e4fec7e8461201f5b61e1a7651b1c14e9643081"
+    },
+    {
+      "source": ".agents/skills/ai-drama-audio-post-production/SKILL.md",
+      "output": "references/ai-drama-audio-post-production/SKILL.md",
+      "sha256": "284efbc71b1a3568c7652f15f17c5575a1614c505e8c659031cbd54771554a1d"
+    },
+    {
+      "source": ".agents/skills/ai-drama-series-production/assets/templates/00-source-adaptation-brief.md",
+      "output": "references/ai-drama-series-production/assets/templates/00-source-adaptation-brief.md",
+      "sha256": "ce7cea9941b905d36fb13f3311ec67714d561795f4779792640d726346c21fbd"
+    },
+    {
+      "source": ".agents/skills/ai-drama-series-production/assets/templates/01-series-story-bible.md",
+      "output": "references/ai-drama-series-production/assets/templates/01-series-story-bible.md",
+      "sha256": "4242cc7ca4e33403637e4a71e1ae29bcaeb4caf6bef0b384882f1f0d05a5eebe"
+    },
+    {
+      "source": ".agents/skills/ai-drama-series-production/assets/templates/02-episode-writing-package.md",
+      "output": "references/ai-drama-series-production/assets/templates/02-episode-writing-package.md",
+      "sha256": "1f22c6a4f30982b6474e74e0336b12d508700f38f3b45d4f30ae3217d068b5fe"
+    },
+    {
+      "source": ".agents/skills/ai-drama-series-production/assets/templates/03-production-breakdown.md",
+      "output": "references/ai-drama-series-production/assets/templates/03-production-breakdown.md",
+      "sha256": "4672030013ba77ce0a31c65c7cf3fca086db17d50bf90a7ed0bc4d090c0ac279"
+    },
+    {
+      "source": ".agents/skills/ai-drama-series-production/references/novel-to-series-writing.md",
+      "output": "references/ai-drama-series-production/references/novel-to-series-writing.md",
+      "sha256": "4083a443a1611261986e50b7c20c8913d0bef350456753d52782b7814c2f72b2"
+    },
+    {
+      "source": ".agents/skills/ai-drama-series-production/references/scene-bible-and-shot-package.md",
+      "output": "references/ai-drama-series-production/references/scene-bible-and-shot-package.md",
+      "sha256": "0114c0c53a77cdcaaaf18c78f1a4abdf49d52fe7a3383c925f0cb7ad58c30e19"
+    },
+    {
+      "source": ".agents/skills/ai-drama-series-production/references/series-engine-and-serial-continuity.md",
+      "output": "references/ai-drama-series-production/references/series-engine-and-serial-continuity.md",
+      "sha256": "7e9409ffbdf5aaed3685fa2c4de3860fa531a29e83e4384ec78bb760f08aa4b8"
+    },
+    {
+      "source": ".agents/skills/ai-drama-series-production/SKILL.md",
+      "output": "references/ai-drama-series-production/SKILL.md",
+      "sha256": "504ebc4893a99dd5eca162bf815b35727ba859849893c01328dd34e5e820ed15"
+    },
+    {
+      "source": ".agents/skills/ai-drama-story-writing/references/prose-to-screenplay.md",
+      "output": "references/ai-drama-story-writing/references/prose-to-screenplay.md",
+      "sha256": "31d3f1dd836df6e08e627ef6c3539d57d616da5845795f12a18cfea9688a8074"
+    },
+    {
+      "source": ".agents/skills/ai-drama-story-writing/references/source-material-triage.md",
+      "output": "references/ai-drama-story-writing/references/source-material-triage.md",
+      "sha256": "e61ceb167e12e09d3827225abd775acdc0dc6d43ce509d5b1bf3c7399fde526b"
+    },
+    {
+      "source": ".agents/skills/ai-drama-story-writing/references/story-architecture.md",
+      "output": "references/ai-drama-story-writing/references/story-architecture.md",
+      "sha256": "9e8e5cb2101313520a6d9d9d0d17e3add0c0db4b84ffcbd60bc76069630db2b3"
+    },
+    {
+      "source": ".agents/skills/ai-drama-story-writing/references/story-room-audit.md",
+      "output": "references/ai-drama-story-writing/references/story-room-audit.md",
+      "sha256": "873e40943e93f0c54653bcf1f9b66a3d7c5f86dfea70c9b209368bac42c0dd70"
+    },
+    {
+      "source": ".agents/skills/ai-drama-story-writing/SKILL.md",
+      "output": "references/ai-drama-story-writing/SKILL.md",
+      "sha256": "7acb3848de1253723a6de24dcb68b51ee92be5c6ccde225fa755d6cf4b1ebfa0"
+    },
+    {
+      "source": ".agents/skills/ai-drama-studio-workflow/assets/studio-handoff-card.md",
+      "output": "references/ai-drama-studio-workflow/assets/studio-handoff-card.md",
+      "sha256": "8ea44b4199e5f648a0903e8a110dcb0a00dbce08f9dc2bc90886bcb80bcc2921"
+    },
+    {
+      "source": ".agents/skills/ai-drama-studio-workflow/references/infinite-canvas-production-contract.md",
+      "output": "references/ai-drama-studio-workflow/references/infinite-canvas-production-contract.md",
+      "sha256": "0f951e683f7abfc998f171e29b706b0cfedf6bb3569d3e95253c680ebc3eb99d"
+    },
+    {
+      "source": ".agents/skills/ai-drama-studio-workflow/references/studio-role-cards.md",
+      "output": "references/ai-drama-studio-workflow/references/studio-role-cards.md",
+      "sha256": "10b040ce366af868c5a0fed490675b2b006ff3fd28d26ff08e3a9bf66273677f"
+    },
+    {
+      "source": ".agents/skills/ai-drama-studio-workflow/SKILL.md",
+      "output": "references/ai-drama-studio-workflow/SKILL.md",
+      "sha256": "2c2ec8f4342e2dd2c3b3da68fe2a5a2948e30b32191f0679aaf0137bcf6de81b"
+    },
+    {
+      "source": ".agents/skills/ai-drama-visual-assets/references/asset-variant-and-continuity.md",
+      "output": "references/ai-drama-visual-assets/references/asset-variant-and-continuity.md",
+      "sha256": "d1a9ec2f39b86d7ea98438955e83e8122f506224caeb47c7655e9879093587da"
+    },
+    {
+      "source": ".agents/skills/ai-drama-visual-assets/references/openai-compatible-image-provider.md",
+      "output": "references/ai-drama-visual-assets/references/openai-compatible-image-provider.md",
+      "sha256": "2621df9d6abf87bb592e5edaec9b0b2eba800253495c9be08f57241548e62837"
+    },
+    {
+      "source": ".agents/skills/ai-drama-visual-assets/references/visual-example-library.md",
+      "output": "references/ai-drama-visual-assets/references/visual-example-library.md",
+      "sha256": "059517ce2f7758c5585e42a301870e9d56066ab3061ef41a94c5a68c875ea958"
+    },
+    {
+      "source": ".agents/skills/ai-drama-visual-assets/SKILL.md",
+      "output": "references/ai-drama-visual-assets/SKILL.md",
+      "sha256": "24d50b786ea82d7a34b9b98ea261e27f31a50575637857ff661558271f4c8ef9"
+    },
+    {
+      "source": ".agents/skills/ai-media-prompt-compiler/references/blocking-and-cut-staging.md",
+      "output": "references/ai-media-prompt-compiler/references/blocking-and-cut-staging.md",
+      "sha256": "a1421c512c8739cb3d348c0c251bff48439d1c4fcd9db4d88950b9e2de549169"
+    },
+    {
+      "source": ".agents/skills/ai-media-prompt-compiler/references/camera-direction-playbook.md",
+      "output": "references/ai-media-prompt-compiler/references/camera-direction-playbook.md",
+      "sha256": "aabe0e23b0bfae6d6abffe97dd71c664a8a183aa60e94a6359f8f7982dd08dec"
+    },
+    {
+      "source": ".agents/skills/ai-media-prompt-compiler/references/character-performance-board-method.md",
+      "output": "references/ai-media-prompt-compiler/references/character-performance-board-method.md",
+      "sha256": "a06b563ce3fec6fb19f311eb20104dfe92fa2d77ac2d860980f6cb8ba7d2d48c"
+    },
+    {
+      "source": ".agents/skills/ai-media-prompt-compiler/references/cinematic-still-prompt-method.md",
+      "output": "references/ai-media-prompt-compiler/references/cinematic-still-prompt-method.md",
+      "sha256": "32eceebdf5b20bcc5bf26692e9c5ad09d955cc243c64f7328bb3c8e6ebc736b4"
+    },
+    {
+      "source": ".agents/skills/ai-media-prompt-compiler/references/clip-boundary-blocking-anchor.md",
+      "output": "references/ai-media-prompt-compiler/references/clip-boundary-blocking-anchor.md",
+      "sha256": "3b0994cd7456df8ddca53943517ba69b705ab977e2a63910a2774615a262f389"
+    },
+    {
+      "source": ".agents/skills/ai-media-prompt-compiler/references/combat-and-ability-staging.md",
+      "output": "references/ai-media-prompt-compiler/references/combat-and-ability-staging.md",
+      "sha256": "3cd4948431626b79bd6d990fdbbae3281e0ad9bc51e7c5b75ad694a50f0a7eb3"
+    },
+    {
+      "source": ".agents/skills/ai-media-prompt-compiler/references/coverage-and-handoff.md",
+      "output": "references/ai-media-prompt-compiler/references/coverage-and-handoff.md",
+      "sha256": "42e121b21a35c1d65643c201c4ef73faf88d0899578716362bc6f5f234d8de88"
+    },
+    {
+      "source": ".agents/skills/ai-media-prompt-compiler/references/director-panel-prompt-method.md",
+      "output": "references/ai-media-prompt-compiler/references/director-panel-prompt-method.md",
+      "sha256": "b52a3530268e89c90618ab13720bf876c44d1314d4d2b66522929eb29ec0e7ae"
+    },
+    {
+      "source": ".agents/skills/ai-media-prompt-compiler/references/identity-board-prompt-method.md",
+      "output": "references/ai-media-prompt-compiler/references/identity-board-prompt-method.md",
+      "sha256": "7836196c752d280766128d0e60e9a24134a2113ac514c1639de0275edc885ccf"
+    },
+    {
+      "source": ".agents/skills/ai-media-prompt-compiler/references/location-plate-prompt-method.md",
+      "output": "references/ai-media-prompt-compiler/references/location-plate-prompt-method.md",
+      "sha256": "4d08ed9a6d0e43f93276dd792bedc7485db4e56ccfda98795dbecf48a155c2aa"
+    },
+    {
+      "source": ".agents/skills/ai-media-prompt-compiler/references/look-color-continuity.md",
+      "output": "references/ai-media-prompt-compiler/references/look-color-continuity.md",
+      "sha256": "e56c39602be732c8138fee3e48bdbd8d765c846126c2265e1777f7fafccae129"
+    },
+    {
+      "source": ".agents/skills/ai-media-prompt-compiler/references/media-acceptance-and-repair.md",
+      "output": "references/ai-media-prompt-compiler/references/media-acceptance-and-repair.md",
+      "sha256": "a82cc6704e21eb7d881a435af0cfa4e7ad7f46a1603a7572176183cf86de46c4"
+    },
+    {
+      "source": ".agents/skills/ai-media-prompt-compiler/references/performance-motion-direction.md",
+      "output": "references/ai-media-prompt-compiler/references/performance-motion-direction.md",
+      "sha256": "78d409013d0d8e733473aac8eba0d03cbe508b5e7448e3a178c3fb4b0428adaf"
+    },
+    {
+      "source": ".agents/skills/ai-media-prompt-compiler/references/production-keyframe-shot-method.md",
+      "output": "references/ai-media-prompt-compiler/references/production-keyframe-shot-method.md",
+      "sha256": "20fc7bb60fee62f4921281d2df1c1bf76c0ad9170f439ab8474e3ce4e87e7670"
+    },
+    {
+      "source": ".agents/skills/ai-media-prompt-compiler/references/prop-plate-prompt-method.md",
+      "output": "references/ai-media-prompt-compiler/references/prop-plate-prompt-method.md",
+      "sha256": "51f78400f338703708de13ccdb8b5eaf6c75f668f1d6eeffb9d7d7cf00702dcb"
+    },
+    {
+      "source": ".agents/skills/ai-media-prompt-compiler/references/provider-boundaries.md",
+      "output": "references/ai-media-prompt-compiler/references/provider-boundaries.md",
+      "sha256": "cbd2a5a77914465efe53745c5326604c858cb655dc04922fc10d3e3de0b0e079"
+    },
+    {
+      "source": ".agents/skills/ai-media-prompt-compiler/references/static-image-reference-batch.md",
+      "output": "references/ai-media-prompt-compiler/references/static-image-reference-batch.md",
+      "sha256": "4c4898209d4e489c2e7c649c2033c3d53c42ec1c8eeb52ef5f258ebe936aa8fc"
+    },
+    {
+      "source": ".agents/skills/ai-media-prompt-compiler/references/video-shot-semantic-template.md",
+      "output": "references/ai-media-prompt-compiler/references/video-shot-semantic-template.md",
+      "sha256": "97f844a03f4f9f2a578a7b925efbe7a9815eee0fb5e7fb7d32d64d6cba6dd02b"
+    },
+    {
+      "source": ".agents/skills/ai-media-prompt-compiler/SKILL.md",
+      "output": "references/ai-media-prompt-compiler/SKILL.md",
+      "sha256": "f10892aa4faa5fc28c8cbe8d6e23153cf3ceee8f9cca3a3d081e3fa4664691d7"
+    },
+    {
+      "source": ".agents/skills/ai-story-architecture/assets/story-architecture-card.md",
+      "output": "references/ai-story-architecture/assets/story-architecture-card.md",
+      "sha256": "23ab2ff754bbec2243b320a910a0c526e607e5ed4aa721d73388f715d61aad23"
+    },
+    {
+      "source": ".agents/skills/ai-story-architecture/references/absurd-black-comedy.md",
+      "output": "references/ai-story-architecture/references/absurd-black-comedy.md",
+      "sha256": "e3693ae4555a5b558bafc5bc0101e656f1b1857a3ebf4b05907080e6d9a9a5db"
+    },
+    {
+      "source": ".agents/skills/ai-story-architecture/references/beat-sheet-and-curves.md",
+      "output": "references/ai-story-architecture/references/beat-sheet-and-curves.md",
+      "sha256": "60d08055a97e0153f4475df029a437d4d3eb03d47849ecaa567afb4a196d37d9"
+    },
+    {
+      "source": ".agents/skills/ai-story-architecture/references/story-design-principles.md",
+      "output": "references/ai-story-architecture/references/story-design-principles.md",
+      "sha256": "2a2f171bb1e0b18af7cbbf1c467c7eac9b22524a88dfe010d9a1b4bdca077793"
+    },
+    {
+      "source": ".agents/skills/ai-story-architecture/SKILL.md",
+      "output": "references/ai-story-architecture/SKILL.md",
+      "sha256": "ce0be3585d4600ab07f7366c2f1af9e1e64e15b64796406603d6c86044cdc559"
+    },
+    {
+      "source": ".agents/skills/blender-whitebox-previs/references/image-guided-scene-blocking.md",
+      "output": "references/blender-whitebox-previs/references/image-guided-scene-blocking.md",
+      "sha256": "680ee5ed18847bec74848d349ca778f7a6f5dad014da7d4eb75f46c6133a50a0"
+    },
+    {
+      "source": ".agents/skills/blender-whitebox-previs/references/local-whitebox-resource-map.md",
+      "output": "references/blender-whitebox-previs/references/local-whitebox-resource-map.md",
+      "sha256": "59f1ee3cee47659fb4b86761859609d4965d8e56c6e9521cb51ecccd44ee50a8"
+    },
+    {
+      "source": ".agents/skills/blender-whitebox-previs/references/previs-contract.md",
+      "output": "references/blender-whitebox-previs/references/previs-contract.md",
+      "sha256": "282269ba81ddf328453fd4611187656101360519ec3c3892a7a9abc6c1203f78"
+    },
+    {
+      "source": ".agents/skills/blender-whitebox-previs/SKILL.md",
+      "output": "references/blender-whitebox-previs/SKILL.md",
+      "sha256": "a4b42095b6945b30e3f45d70c046418685aab5cca48df5cbc4eb0fdf48c12ebd"
+    },
+    {
+      "source": ".agents/skills/minimax-h3-video-production/references/h3-fl2va-test-template.md",
+      "output": "references/minimax-h3-video-production/references/h3-fl2va-test-template.md",
+      "sha256": "768e84be0beda5ddc13834d57eca175ca90f08b87283346d5cdc73ebab370241"
+    },
+    {
+      "source": ".agents/skills/minimax-h3-video-production/references/h3-prompt-compilation-and-validation.md",
+      "output": "references/minimax-h3-video-production/references/h3-prompt-compilation-and-validation.md",
+      "sha256": "a09c8f6ae5d62043f105a818774f8ceab57aa6368d4577133a6448073434ad8f"
+    },
+    {
+      "source": ".agents/skills/minimax-h3-video-production/references/h3-ref2va-audio-mapping-example.md",
+      "output": "references/minimax-h3-video-production/references/h3-ref2va-audio-mapping-example.md",
+      "sha256": "5b73eb16442b5311d31adb25277970037c82a4264c6444cd9ca8636055e78eeb"
+    },
+    {
+      "source": ".agents/skills/minimax-h3-video-production/references/h3-ref2va-final-prompt-template.md",
+      "output": "references/minimax-h3-video-production/references/h3-ref2va-final-prompt-template.md",
+      "sha256": "ec6c6d6317743b9cf020d6b21ea65c7193db75be0cea511820be90b4a93e6a6d"
+    },
+    {
+      "source": ".agents/skills/minimax-h3-video-production/references/minimax-h3-local.md",
+      "output": "references/minimax-h3-video-production/references/minimax-h3-local.md",
+      "sha256": "ee726f4b00870818ee0d60af8433644cebdde423f6fc4e499460de93419c5d61"
+    },
+    {
+      "source": ".agents/skills/minimax-h3-video-production/references/whitebox-video-reference-input.md",
+      "output": "references/minimax-h3-video-production/references/whitebox-video-reference-input.md",
+      "sha256": "97365b512db6ec2ab8bf0dcba9a2d9007a58cc2dee4bbf2de160baef7c96bab1"
+    },
+    {
+      "source": ".agents/skills/minimax-h3-video-production/SKILL.md",
+      "output": "references/minimax-h3-video-production/SKILL.md",
+      "sha256": "c040b6526caedbb0bb5bed1815384862712742988ff8246adae94f92c42960c4"
+    },
+    {
+      "source": ".agents/skills/novel-to-ai-drama-adaptation/assets/templates/00-小说改编简报.md",
+      "output": "references/novel-to-ai-drama-adaptation/assets/templates/00-小说改编简报.md",
+      "sha256": "0f07d1b27dae2bd3896016bf72fb815737243259c2a996ef4ac422bf24c3a1e9"
+    },
+    {
+      "source": ".agents/skills/novel-to-ai-drama-adaptation/assets/templates/01-全书改编蓝图.md",
+      "output": "references/novel-to-ai-drama-adaptation/assets/templates/01-全书改编蓝图.md",
+      "sha256": "2d65aff7e247b2fb7e3a385d03088dc6df71e25ec56f408129a8e4a3a1402881"
+    },
+    {
+      "source": ".agents/skills/novel-to-ai-drama-adaptation/assets/templates/EP-制作剧本.md",
+      "output": "references/novel-to-ai-drama-adaptation/assets/templates/EP-制作剧本.md",
+      "sha256": "9fe267752e394706ac5487eb4400f937e17a8a0a7010f0a9dad5a7c3b9c441e1"
+    },
+    {
+      "source": ".agents/skills/novel-to-ai-drama-adaptation/references/book-to-series-adaptation.md",
+      "output": "references/novel-to-ai-drama-adaptation/references/book-to-series-adaptation.md",
+      "sha256": "b1936a725b83396f5bd154a5c4608c4ff86b6449477b8f91372288d894ee4d59"
+    },
+    {
+      "source": ".agents/skills/novel-to-ai-drama-adaptation/references/season-screenplay.md",
+      "output": "references/novel-to-ai-drama-adaptation/references/season-screenplay.md",
+      "sha256": "f0ff3a9301471695dc5dad6a6ffb9b9317545c511195bca75055f11fc0e457c2"
+    },
+    {
+      "source": ".agents/skills/novel-to-ai-drama-adaptation/SKILL.md",
+      "output": "references/novel-to-ai-drama-adaptation/SKILL.md",
+      "sha256": "07b61653f7ff564579809a083708f10ba211accab67c55d1b725014cff954b35"
+    },
+    {
+      "source": ".agents/skills/scene-multiview-consistency/SKILL.md",
+      "output": "references/scene-multiview-consistency/SKILL.md",
+      "sha256": "5d29b05b90d2fff459e9e8e49ac8bc02f236f82089800d58c8967e88c6cf1fc4"
+    },
+    {
+      "source": ".agents/skills/short-video-production/assets/templates/01-content-brief.md",
+      "output": "references/short-video-production/assets/templates/01-content-brief.md",
+      "sha256": "b872b4e4ca6a18d831d04caff34531d6576074702c441c18c5c9da2636575cdd"
+    },
+    {
+      "source": ".agents/skills/short-video-production/assets/templates/02-topic-and-hypothesis.md",
+      "output": "references/short-video-production/assets/templates/02-topic-and-hypothesis.md",
+      "sha256": "e204f0b0511f7fef07998e9c78920f0cc2e6af9061461723c19a37275c24e2c8"
+    },
+    {
+      "source": ".agents/skills/short-video-production/assets/templates/03-research-script.md",
+      "output": "references/short-video-production/assets/templates/03-research-script.md",
+      "sha256": "5747e3a2347c2262c484a5b1c59bfa10e4554a5b28f77618b85194cb2a4fb164"
+    },
+    {
+      "source": ".agents/skills/short-video-production/assets/templates/05-review-publish-learn.md",
+      "output": "references/short-video-production/assets/templates/05-review-publish-learn.md",
+      "sha256": "69c830ac7e162c2994887b87166fef7b4a634381a2ed8c8e01ffcb87faf6f72f"
+    },
+    {
+      "source": ".agents/skills/short-video-production/assets/templates/10-comfyui-technical-lab-test.md",
+      "output": "references/short-video-production/assets/templates/10-comfyui-technical-lab-test.md",
+      "sha256": "20e1464a7e106f7b010381a6f314758cd6eb15c70c300346f15d5f6e7a952cff"
+    },
+    {
+      "source": ".agents/skills/short-video-production/references/ffmpeg-media-helper.md",
+      "output": "references/short-video-production/references/ffmpeg-media-helper.md",
+      "sha256": "641da62fac6f90a7a169ab7be2ae6961298b85bb699750dd38cf0ff6c11ca297"
+    },
+    {
+      "source": ".agents/skills/short-video-production/references/local-video-upscale.md",
+      "output": "references/short-video-production/references/local-video-upscale.md",
+      "sha256": "ccaedd08b2eda3c5d205936eadb54eed16b232744b60e29abc3823e317d476a5"
+    },
+    {
+      "source": ".agents/skills/short-video-production/references/opening-hook-and-five-second-retention.md",
+      "output": "references/short-video-production/references/opening-hook-and-five-second-retention.md",
+      "sha256": "4c39c8ac4039f0e2b6a9d99ea00c119fa9773da4cb4b948bcc715dff445530cd"
+    },
+    {
+      "source": ".agents/skills/short-video-production/references/pilot-and-editing.md",
+      "output": "references/short-video-production/references/pilot-and-editing.md",
+      "sha256": "b26581b34423dbe57a7c1fbf317894170d2efe6d97da026f84cd611d701135cf"
+    },
+    {
+      "source": ".agents/skills/short-video-production/references/rights-and-evidence.md",
+      "output": "references/short-video-production/references/rights-and-evidence.md",
+      "sha256": "b2e4e15737233d572884b4581b2d242baaa3dcc6d0e509e7537b80330baae889"
+    },
+    {
+      "source": ".agents/skills/short-video-production/references/tooling-assets-hyperframes.md",
+      "output": "references/short-video-production/references/tooling-assets-hyperframes.md",
+      "sha256": "7d068d2a6c3ba522d33df197170245be2f8872da5bcd077198f04f658f8c3119"
+    },
+    {
+      "source": ".agents/skills/short-video-production/SKILL.md",
+      "output": "references/short-video-production/SKILL.md",
+      "sha256": "c466f0191ae199b0734eda1638111fa6ce5bb3210a4df9d6ecd77e15115d3777"
+    }
+  ]
+}

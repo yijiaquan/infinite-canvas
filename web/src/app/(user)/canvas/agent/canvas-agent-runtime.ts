@@ -202,8 +202,9 @@ export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCan
         }
         const arrangeRequested = canvasAgentAllowsArrangement(input.userText);
         const requestedActions = nativeActions.length ? nativeActions : parsedJson.actions;
-        const actions = requestedActions.filter((action) => action.name !== "arrange_nodes" || arrangeRequested);
-        const rejectedToolMessages: CanvasAgentProtocolMessage[] = nativeActions.filter((action) => action.name === "arrange_nodes" && !arrangeRequested).map((action) => ({
+        const isArrangement = (action: CanvasAgentAction) => action.name === "arrange_nodes";
+        const actions = requestedActions.filter((action) => !isArrangement(action) || arrangeRequested);
+        const rejectedToolMessages: CanvasAgentProtocolMessage[] = nativeActions.filter((action) => isArrangement(action) && !arrangeRequested).map((action) => ({
             role: "tool",
             toolCallId: action.id,
             name: action.name,

@@ -274,45 +274,60 @@ function isVideoModelName(model: string) {
 
 function isImageModelName(model: string) {
     const value = model.toLowerCase();
-    return !isVideoModelName(model) && !isAudioModelName(model) && (
-        value.includes("image") ||
-        value.includes("nano-banana") ||
-        value.includes("seedream") ||
-        value.includes("gpt-image") ||
-        value.includes("cogview") ||
-        value.includes("dall-e") ||
-        value.includes("dalle") ||
-        value.includes("imagen") ||
-        value.includes("gemini-2.5-flash") ||
-        value.includes("gemini-3-pro") ||
-        value.includes("gemini-3.1-flash") ||
-        value.includes("flux") ||
-        value.includes("kontext") ||
-        value.includes("4o-image") ||
-        value.includes("4o image") ||
-        value.includes("gpt-4o-image") ||
-        value.includes("z-image") ||
-        value.includes("qwen/image") ||
-        value.includes("qwen2/image") ||
-        value.includes("qwen/text-to-image") ||
-        value.includes("qwen2/text-to-image") ||
-        value.includes("ideogram") ||
-        value.includes("recraft") ||
-        value.includes("sdxl") ||
-        value.includes("stable-diffusion") ||
-        value.includes("midjourney") ||
-        value.includes("wan2-7-image") ||
-        value.includes("wan2.7-image") ||
-        value.includes("wan/2-7-image") ||
-        value.includes("topaz/image") ||
-        value.includes("gemini-omni-character") ||
-        (value.includes("grok-imagine") && !value.includes("video"))
+    return (
+        !isVideoModelName(model) &&
+        !isAudioModelName(model) &&
+        (value.includes("image") ||
+            value.includes("nano-banana") ||
+            value.includes("seedream") ||
+            value.includes("gpt-image") ||
+            value.includes("cogview") ||
+            value.includes("dall-e") ||
+            value.includes("dalle") ||
+            value.includes("imagen") ||
+            value.includes("gemini-2.5-flash") ||
+            value.includes("gemini-3-pro") ||
+            value.includes("gemini-3.1-flash") ||
+            value.includes("flux") ||
+            value.includes("kontext") ||
+            value.includes("4o-image") ||
+            value.includes("4o image") ||
+            value.includes("gpt-4o-image") ||
+            value.includes("z-image") ||
+            value.includes("qwen/image") ||
+            value.includes("qwen2/image") ||
+            value.includes("qwen/text-to-image") ||
+            value.includes("qwen2/text-to-image") ||
+            value.includes("ideogram") ||
+            value.includes("recraft") ||
+            value.includes("sdxl") ||
+            value.includes("stable-diffusion") ||
+            value.includes("midjourney") ||
+            value.includes("wan2-7-image") ||
+            value.includes("wan2.7-image") ||
+            value.includes("wan/2-7-image") ||
+            value.includes("topaz/image") ||
+            value.includes("gemini-omni-character") ||
+            (value.includes("grok-imagine") && !value.includes("video")))
     );
 }
 
 function isAudioModelName(model: string) {
     const value = model.toLowerCase();
-    return value.includes("audio") || value.includes("tts") || value.includes("speech") || value.includes("voice") || value.includes("music") || value.includes("sound") || value.includes("elevenlabs") || value.includes("suno") || value.includes("lyrics") || value.includes("vocal") || value.includes("midi") || value.includes("wav");
+    return (
+        value.includes("audio") ||
+        value.includes("tts") ||
+        value.includes("speech") ||
+        value.includes("voice") ||
+        value.includes("music") ||
+        value.includes("sound") ||
+        value.includes("elevenlabs") ||
+        value.includes("suno") ||
+        value.includes("lyrics") ||
+        value.includes("vocal") ||
+        value.includes("midi") ||
+        value.includes("wav")
+    );
 }
 
 function isTextModelName(model: string) {
@@ -321,6 +336,12 @@ function isTextModelName(model: string) {
 
 export function modelMatchesCapability(model: string, capability?: ModelCapability, protocol = "") {
     if (!capability) return true;
+    if (protocol === "comfyui") {
+        if (capability === "image") return model === "comfyui:openai-image" || model === "comfyui:seedvr2-image-upscale" || model === "comfyui:vosr2-image-upscale";
+        if (capability === "audio") return model === "comfyui:minimax-music3";
+        if (capability === "video") return model.startsWith("comfyui:minimax-h3-") || model === "comfyui:seedvr2-upscale";
+        return false;
+    }
     if (protocol === "autodl") {
         if (capability === "audio") return model === "indextts2-v1";
         return capability === "video" && (model.startsWith("minimax_h3_") || model === "wan2.2animate-v4-motion_retargeting");
@@ -368,7 +389,7 @@ export function resolveModelForCapability(config: AiConfig, currentModel: string
 
 function isAiConfigReady(config: AiConfig, model: string) {
     const channel = localChannelForActiveModel({ ...config, model });
-    return Boolean(model.trim()) && (config.channelMode === "remote" || Boolean(channel?.baseUrl.trim() && channel?.apiKey.trim()));
+    return Boolean(model.trim()) && (config.channelMode === "remote" || Boolean(channel?.baseUrl.trim() && (channel.protocol === "comfyui" || channel.apiKey.trim())));
 }
 
 export const useConfigStore = create<ConfigStore>()(
@@ -402,6 +423,33 @@ export const useConfigStore = create<ConfigStore>()(
         }),
         {
             name: CONFIG_STORE_KEY,
+            version: 2,
+            migrate: (persisted, version) => {
+                if (version >= 2) return persisted;
+                const state = (persisted || {}) as Partial<ConfigStore>;
+                const config = (state.config || {}) as Partial<AiConfig>;
+                const channels = normalizeLocalChannels(config);
+                const hadComfyUI = channels.some((channel) => channel.protocol === "comfyui");
+                const withoutComfyUI = (models?: string[]) => (models || []).filter((model) => !model.startsWith("comfyui:"));
+                return {
+                    ...state,
+                    config: {
+                        ...config,
+                        channelMode: hadComfyUI ? "remote" : config.channelMode,
+                        localChannels: channels.filter((channel) => channel.protocol !== "comfyui"),
+                        models: withoutComfyUI(config.models),
+                        imageModels: withoutComfyUI(config.imageModels),
+                        videoModels: withoutComfyUI(config.videoModels),
+                        audioModels: withoutComfyUI(config.audioModels),
+                        imageModel: config.imageModel?.startsWith("comfyui:") ? defaultConfig.imageModel : config.imageModel,
+                        videoModel: config.videoModel?.startsWith("comfyui:") ? defaultConfig.videoModel : config.videoModel,
+                        audioModel: config.audioModel?.startsWith("comfyui:") ? defaultConfig.audioModel : config.audioModel,
+                        imageChannelId: config.imageChannelId === "local-comfyui" ? "" : config.imageChannelId,
+                        videoChannelId: config.videoChannelId === "local-comfyui" ? "" : config.videoChannelId,
+                        audioChannelId: config.audioChannelId === "local-comfyui" ? "" : config.audioChannelId,
+                    },
+                };
+            },
             partialize: (state) => ({ config: state.config }),
             merge: (persisted, current) => {
                 const persistedState = (persisted || {}) as Partial<ConfigStore>;
@@ -525,9 +573,10 @@ export function normalizeLocalChannels(config: Partial<AiConfig>): LocalModelCha
 
 export function channelIdForActiveModel(config: AiConfig) {
     const channels = config.channelMode === "remote" ? config.publicChannels : normalizeLocalChannels(config);
-    const selectedChannelId = config.model === config.imageModel ? config.imageChannelId : config.model === config.videoModel ? config.videoChannelId : config.model === config.audioModel ? config.audioChannelId : config.model === config.textModel ? config.textChannelId : "";
+    const selectedChannelId =
+        config.model === config.imageModel ? config.imageChannelId : config.model === config.videoModel ? config.videoChannelId : config.model === config.audioModel ? config.audioChannelId : config.model === config.textModel ? config.textChannelId : "";
     const selectedChannel = channels.find((channel) => channel.id === selectedChannelId);
-    if (selectedChannel?.protocol === "gemini" || selectedChannel?.protocol === "autodl") return selectedChannelId;
+    if (selectedChannel?.protocol === "gemini" || selectedChannel?.protocol === "autodl" || selectedChannel?.protocol === "comfyui") return selectedChannelId;
     if (!selectedChannel) {
         const geminiChannel = channels.find((channel) => channel.protocol === "gemini" && (channel.models || []).includes(config.model));
         if (geminiChannel) return geminiChannel.id || "";
@@ -550,9 +599,7 @@ export function localChannelForActiveModel(config: AiConfig) {
 }
 
 export function channelProtocolForConfig(config: AiConfig): LocalModelChannel["protocol"] {
-    const channel = config.channelMode === "remote"
-        ? config.publicChannels.find((item) => item.id === channelIdForActiveModel(config)) || config.publicChannels[0]
-        : localChannelForActiveModel(config);
+    const channel = config.channelMode === "remote" ? config.publicChannels.find((item) => item.id === channelIdForActiveModel(config)) || config.publicChannels[0] : localChannelForActiveModel(config);
     return channel?.protocol || "openai";
 }
 

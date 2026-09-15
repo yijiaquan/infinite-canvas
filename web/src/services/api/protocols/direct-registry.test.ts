@@ -5,7 +5,7 @@ import { collectHTTPURLs, normalizeDirectStatus, readDirectError } from "./share
 
 // Expectations are taken from direct-ai.ts at a27f046, before protocol extraction.
 test("direct protocols preserve polling paths and task ID precedence", () => {
-    assert.deepEqual(Object.keys(directProtocolAdapters).sort(), ["apimart", "ark", "autodl", "kie"]);
+    assert.deepEqual(Object.keys(directProtocolAdapters).sort(), ["apimart", "ark", "autodl", "comfyui", "kie"]);
     assert.equal(directProtocolAdapters.kie.pollPath("task/a b?"), "/jobs/recordInfo?taskId=task%2Fa%20b%3F");
     assert.equal(directProtocolAdapters.apimart.pollPath("task/a b?"), "/tasks/task%2Fa%20b%3F?language=zh");
     assert.equal(directProtocolAdapters.ark.pollPath("task/a b?"), "/contents/generations/tasks/task%2Fa%20b%3F");
@@ -27,14 +27,8 @@ test("created video status retains provider-specific behavior", () => {
 });
 
 test("APIMart synchronous images keep URL order, nesting and deduplication", () => {
-    const payload = { data: [
-        { url: " https://media.example/one.png " },
-        { url: ["https://media.example/two.png", "https://media.example/one.png", "data:image/png;base64,AAAA"] },
-        { b64_json: "ignored", other: "https://media.example/ignored.png" },
-    ] };
-    assert.deepEqual(directProtocolAdapters.apimart.readCreatedImageURLs?.(payload), [
-        "https://media.example/one.png", "https://media.example/two.png",
-    ]);
+    const payload = { data: [{ url: " https://media.example/one.png " }, { url: ["https://media.example/two.png", "https://media.example/one.png", "data:image/png;base64,AAAA"] }, { b64_json: "ignored", other: "https://media.example/ignored.png" }] };
+    assert.deepEqual(directProtocolAdapters.apimart.readCreatedImageURLs?.(payload), ["https://media.example/one.png", "https://media.example/two.png"]);
     assert.deepEqual(directProtocolAdapters.kie.readCreatedImageURLs?.(payload) || [], []);
     assert.deepEqual(directProtocolAdapters.apimart.readCreatedImageURLs?.({ data: { url: "https://media.example/one.png" } }), []);
 });
@@ -42,48 +36,114 @@ test("APIMart synchronous images keep URL order, nesting and deduplication", () 
 test("image polling keeps status aliases, result shapes and failure precedence", () => {
     const result = { resultUrls: ["https://media.example/one.png", "https://media.example/two.png", "https://media.example/one.png"] };
     assert.deepEqual(directProtocolAdapters.kie.readImagePoll({ data: { state: "success", resultJson: JSON.stringify(result) } }), {
-        urls: ["https://media.example/one.png", "https://media.example/two.png"], done: true, error: "",
+        urls: ["https://media.example/one.png", "https://media.example/two.png"],
+        done: true,
+        error: "",
     });
     assert.deepEqual(directProtocolAdapters.apimart.readImagePoll({ data: { result } }), {
-        urls: ["https://media.example/one.png", "https://media.example/two.png"], done: true, error: "",
+        urls: ["https://media.example/one.png", "https://media.example/two.png"],
+        done: true,
+        error: "",
     });
     assert.deepEqual(directProtocolAdapters.kie.readImagePoll({ code: 500, msg: "outer", data: { state: "failed", failMsg: "specific", failCode: "code" } }), {
-        urls: [], done: false, error: "specific",
+        urls: [],
+        done: false,
+        error: "specific",
     });
     assert.deepEqual(directProtocolAdapters.apimart.readImagePoll({ code: 500, msg: "outer", data: { status: "failed", error: { message: "specific" } } }), {
-        urls: [], done: false, error: "specific",
+        urls: [],
+        done: false,
+        error: "specific",
     });
     for (const provider of ["kie", "apimart"] as const) {
-        for (const [status, expected] of [["success", "completed"], ["succeeded", "completed"], ["completed", "completed"], ["fail", "failed"], ["failed", "failed"], ["cancelled", "failed"], ["canceled", "failed"], ["queued", "processing"], ["", "processing"]] as const) {
+        for (const [status, expected] of [
+            ["success", "completed"],
+            ["succeeded", "completed"],
+            ["completed", "completed"],
+            ["fail", "failed"],
+            ["failed", "failed"],
+            ["cancelled", "failed"],
+            ["canceled", "failed"],
+            ["queued", "processing"],
+            ["", "processing"],
+        ] as const) {
             const data = provider === "kie" ? { state: status } : { status };
-            assert.deepEqual(directProtocolAdapters[provider].readImagePoll({ data }), {
-                urls: [], done: expected === "completed", error: expected === "failed" ? "图片生成失败" : "",
-            }, `${provider}: ${status}`);
+            assert.deepEqual(
+                directProtocolAdapters[provider].readImagePoll({ data }),
+                {
+                    urls: [],
+                    done: expected === "completed",
+                    error: expected === "failed" ? "图片生成失败" : "",
+                },
+                `${provider}: ${status}`,
+            );
         }
     }
 });
 
 test("video polling preserves result URL, progress types and error precedence", () => {
-    assert.deepEqual(directProtocolAdapters.kie.readVideoPoll({ data: {
-        taskId: " remote ", state: "succeeded", progress: "25.5",
-        resultJson: '{"resultUrls":["https://media.example/first.mp4","https://media.example/second.mp4"]}',
-    } }, "local", "model-x"), {
-        id: "remote", task_id: "remote", status: "completed", progress: 25.5,
-        video_url: "https://media.example/first.mp4", url: "https://media.example/first.mp4", model: "model-x",
-    });
-    assert.deepEqual(directProtocolAdapters.apimart.readVideoPoll({ data: {
-        id: " remote ", status: "cancelled", progress: "not-a-number", error: { message: " rejected " },
-    } }, "local", "model-x"), {
-        id: "remote", task_id: "remote", status: "failed", progress: undefined, error: { message: "rejected" }, model: "model-x",
-    });
+    assert.deepEqual(
+        directProtocolAdapters.kie.readVideoPoll(
+            {
+                data: {
+                    taskId: " remote ",
+                    state: "succeeded",
+                    progress: "25.5",
+                    resultJson: '{"resultUrls":["https://media.example/first.mp4","https://media.example/second.mp4"]}',
+                },
+            },
+            "local",
+            "model-x",
+        ),
+        {
+            id: "remote",
+            task_id: "remote",
+            status: "completed",
+            progress: 25.5,
+            video_url: "https://media.example/first.mp4",
+            url: "https://media.example/first.mp4",
+            model: "model-x",
+        },
+    );
+    assert.deepEqual(
+        directProtocolAdapters.apimart.readVideoPoll(
+            {
+                data: {
+                    id: " remote ",
+                    status: "cancelled",
+                    progress: "not-a-number",
+                    error: { message: " rejected " },
+                },
+            },
+            "local",
+            "model-x",
+        ),
+        {
+            id: "remote",
+            task_id: "remote",
+            status: "failed",
+            progress: undefined,
+            error: { message: "rejected" },
+            model: "model-x",
+        },
+    );
     for (const provider of ["kie", "apimart"] as const) {
         assert.deepEqual(directProtocolAdapters[provider].readVideoPoll({}, "fallback", "model-x"), {
-            id: "fallback", task_id: "fallback", status: "processing", progress: undefined, model: "model-x",
+            id: "fallback",
+            task_id: "fallback",
+            status: "processing",
+            progress: undefined,
+            model: "model-x",
         });
     }
     assert.equal(directProtocolAdapters.kie.readVideoPoll({ data: { failMsg: "first", failCode: "second" }, error: { message: "outer" } }, "id", "model").error?.message, "first");
     assert.deepEqual(directProtocolAdapters.ark.readVideoPoll({ id: "ark-task", status: "succeeded", content: { video_url: "https://media.example/ark.mp4" } }, "fallback", "seedance"), {
-        id: "ark-task", task_id: "ark-task", status: "completed", video_url: "https://media.example/ark.mp4", url: "https://media.example/ark.mp4", model: "seedance",
+        id: "ark-task",
+        task_id: "ark-task",
+        status: "completed",
+        video_url: "https://media.example/ark.mp4",
+        url: "https://media.example/ark.mp4",
+        model: "seedance",
     });
 });
 
@@ -126,16 +186,21 @@ test("AutoDL uses raw token and polls the workflow result endpoint without addin
 
 test("AutoDL separates output media from input and preview URLs and does not invent progress", () => {
     const protocol = directProtocolAdapters.autodl;
-    const payload = { code: "Success", data: {
-        task_id: "created-once", status: "SUCCESS", duration: 12,
-        input: { url: "https://media.example/input.mp4" },
-        results: [
-            { type: "image", url: "https://media.example/poster.png" },
-            { type: "video", output_type: "preview", url: "https://media.example/preview.mp4" },
-            { type: "audio", output_type: "output", url: "https://media.example/speech.wav" },
-            { type: "video", output_type: "output", url: "https://media.example/final.mp4" },
-        ],
-    } };
+    const payload = {
+        code: "Success",
+        data: {
+            task_id: "created-once",
+            status: "SUCCESS",
+            duration: 12,
+            input: { url: "https://media.example/input.mp4" },
+            results: [
+                { type: "image", url: "https://media.example/poster.png" },
+                { type: "video", output_type: "preview", url: "https://media.example/preview.mp4" },
+                { type: "audio", output_type: "output", url: "https://media.example/speech.wav" },
+                { type: "video", output_type: "output", url: "https://media.example/final.mp4" },
+            ],
+        },
+    };
     const video = protocol.readVideoPoll(payload, "created-once", "minimax_h3_b99_002");
     assert.equal(video.video_url, "https://media.example/final.mp4");
     assert.equal(video.status, "completed");
@@ -154,4 +219,22 @@ test("AutoDL reports string business errors, task failures and completed tasks w
     assert.equal(protocol.readVideoPoll(empty, "task", "model").status, "failed");
     assert.match(protocol.readVideoPoll(empty, "task", "model").error?.message || "", /没有返回视频地址/);
     assert.match(protocol.readAudioPoll?.(empty).error || "", /没有返回音频地址/);
+});
+
+test("ComfyUI keeps local proxy URLs and separates media kinds", () => {
+    const protocol = directProtocolAdapters.comfyui;
+    assert.equal(protocol.readTaskId({ prompt_id: " prompt-1 " }), "prompt-1");
+    assert.equal(protocol.pollURL?.("http://127.0.0.1:8188/", "task/a b?"), "/api/ai/comfyui/tasks/task%2Fa%20b%3F?baseUrl=http%3A%2F%2F127.0.0.1%3A8188");
+    assert.deepEqual(protocol.readImagePoll({ status: "completed", image_urls: ["/api/ai/comfyui/view?image=1"] }), {
+        urls: ["/api/ai/comfyui/view?image=1"],
+        done: true,
+        error: "",
+    });
+    assert.deepEqual(protocol.readAudioPoll?.({ status: "completed", audio_url: "/api/ai/comfyui/view?audio=1" }), {
+        url: "/api/ai/comfyui/view?audio=1",
+        done: true,
+        error: "",
+    });
+    assert.equal(protocol.readVideoPoll({ status: "completed", video_url: "/api/ai/comfyui/view?video=1" }, "task-1", "workflow").status, "completed");
+    assert.equal(protocol.readVideoPoll({ status: "failed", error: { message: "node failed" } }, "task-1", "workflow").error?.message, "node failed");
 });

@@ -7,6 +7,7 @@ import { readImageMeta } from "@/lib/image-utils";
 import { deleteAnonymousStorageFile, uploadAnonymousStorageFile } from "@/services/anonymous-storage";
 import { apiGet } from "@/services/api/request";
 import { useUserStore } from "@/stores/use-user-store";
+import { preflightDirectStorageDelete } from "@/services/storage-delete-preflight";
 
 export type UploadedImage = {
     url: string;
@@ -551,6 +552,7 @@ async function deleteServerImage(storageKey: string) {
     if (storageKey.startsWith("server:webdav:") && provider?.type !== "webdav") return;
     if (provider?.type === "webdav") {
         const direct = await import("@/services/webdav-direct-storage");
+        await preflightDirectStorageDelete(storageKey, token);
         if (await direct.deletePersistedDirectWebDAV(provider, storageKey)) {
             clearAutoSyncCache(storageKey);
             const url = objectUrls.get(storageKey);

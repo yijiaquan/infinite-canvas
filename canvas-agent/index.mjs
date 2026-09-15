@@ -9,6 +9,8 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { CodexClient } from "./codex.mjs";
+import { SessionRegistry } from "./session-registry.mjs";
+import { formatCanvasToolResult } from "./media-result.mjs";
 
 const entry = fileURLToPath(import.meta.url);
 const configPath = resolve(homedir(), ".infinite-canvas", "codex-agent.json");
@@ -25,6 +27,13 @@ const endpoint = "http://127.0.0.1:" + port;
 const workspace = dirname(entry);
 const origins = new Set(process.env.CANVAS_AGENT_ORIGINS?.split(",").map((value) => value.trim()).filter(Boolean) || savedConfig?.origins || []);
 const sessions = new Map();
+const sessionRegistry = new SessionRegistry(sessions, {
+    onSwitch(previous) {
+        for (const pending of previous.toolsPending.values()) {
+            if (pending.source === "external") pending.cancel("已切换到其他画布，工具请求已取消");
+        }
+    },
+});
 const methods = new Set(["model/list", "thread/start", "thread/resume", "thread/archive", "turn/start", "turn/interrupt", "bridge/stop"]);
 
 async function openCanvas() {
@@ -51,14 +60,7 @@ function saveConfig() {
 }
 
 function findSession(clientId) {
-    if (!clientId) {
-        const connected = [...sessions.values()].filter((session) => session.events && session.canvasId);
-        if (connected.length !== 1) throw new Error("请只连接一个画布，或为 MCP 设置 CANVAS_AGENT_CLIENT_ID");
-        return connected[0];
-    }
-    const session = sessions.get(clientId);
-    if (!session) throw new Error("画布尚未连接");
-    return session;
+    return sessionRegistry.find(clientId);
 }
 
 function emit(session, event, data) {
@@ -66,6 +68,7 @@ function emit(session, event, data) {
 }
 
 function closeSession(session) {
+    sessionRegistry.close(session);
     if (sessions.get(session.clientId) === session) sessions.delete(session.clientId);
     for (const pending of session.toolsPending.values()) {
         clearTimeout(pending.timer);
@@ -170,7 +173,7 @@ async function startMcp() {
     server.setRequestHandler(CallToolRequestSchema, async ({ params }, { signal }) => {
         try {
             const result = await request("/tools/call", { name: params.name, arguments: params.arguments || {} }, signal);
-            return { isError: result?.ok === false, content: [{ type: "text", text: JSON.stringify(result) }] };
+            return formatCanvasToolResult(result);
         } catch (error) {
             return { isError: true, content: [{ type: "text", text: error.message }] };
         }
@@ -216,7 +219,7 @@ function startHttp() {
     });
     app.use(express.json({ limit: "20mb" }));
     app.post("/connect", (req, res) => {
-        const { clientId, canvasId, tools } = req.body;
+        const { clientId, canvasId, tools, activity } = req.body;
         if (typeof clientId !== "string" || !clientId || typeof canvasId !== "string" || !canvasId || !Array.isArray(tools)) {
             return res.status(400).json({ error: "连接参数不完整" });
         }
@@ -226,7 +229,13 @@ function startHttp() {
         }
         session.canvasId = canvasId;
         session.tools = tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema }));
-        res.json({ serviceId });
+        const active = activity ? sessionRegistry.activate({ clientId, canvasId, origin: req.headers.origin, sequence: activity.sequence, observedAt: activity.observedAt }) : false;
+        res.json({ serviceId, active });
+    });
+    app.post("/activate", (req, res) => {
+        const { clientId, canvasId, sequence, observedAt } = req.body;
+        if (typeof clientId !== "string" || !clientId || typeof canvasId !== "string" || !canvasId) return res.status(400).json({ error: "活动画布参数不完整" });
+        res.json({ active: sessionRegistry.activate({ clientId, canvasId, origin: req.headers.origin, sequence, observedAt }) });
     });
     app.get("/events", (req, res) => {
         const clientId = req.query.clientId;

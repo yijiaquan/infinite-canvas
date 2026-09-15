@@ -305,8 +305,16 @@ func DeleteStorageObject(ctx context.Context, id string, providerInput *StorageO
 		}
 		return err
 	}
-	if user, ok := UserFromContext(ctx); ok && object.CreatedBy != "" && object.CreatedBy != user.ID {
+	if user, ok := UserFromContext(ctx); object.CreatedBy != "" && object.CreatedBy != "anonymous" && (!ok || object.CreatedBy != user.ID) {
 		return errors.New("无权删除该对象")
+	}
+	if referenced, err := repository.DramaStorageReferenced(id); err != nil {
+		return err
+	} else if referenced {
+		return errors.New("媒体仍被漫剧资产、任务或采用记录引用，不能删除")
+	}
+	if object.ProviderID == dramaLocalProvider {
+		return deleteDramaLocalMedia(id)
 	}
 	settings, err := repository.GetSettings()
 	if err != nil {
@@ -344,6 +352,11 @@ func DeleteDirectStorageObjectRecord(ctx context.Context, id string) error {
 	user, ok := UserFromContext(ctx)
 	if !ok || user.ID == "" || object.CreatedBy != user.ID || !object.Direct {
 		return errors.New("无权删除该对象记录")
+	}
+	if referenced, err := repository.DramaStorageReferenced(id); err != nil {
+		return err
+	} else if referenced {
+		return errors.New("媒体仍被漫剧记录引用，不能删除")
 	}
 	return repository.DeleteStorageObjectRecord(id)
 }
@@ -476,6 +489,12 @@ func RefreshStorageCapacityScheduler() {
 
 // DownloadStorageObject 下载存储对象内容。
 func DownloadStorageObject(id string, rangeHeader string) (DownloadedStorageObject, error) {
+	if file, object, local, err := OpenDramaMedia(id); local {
+		if err != nil {
+			return DownloadedStorageObject{}, err
+		}
+		return DownloadedStorageObject{Object: object, Stream: file, StatusCode: http.StatusOK, ContentLength: object.Bytes}, nil
+	}
 	object, err := repository.GetStorageObject(id)
 	if err != nil {
 		return DownloadedStorageObject{}, err
@@ -906,6 +925,18 @@ type listBucketResult struct {
 
 func extensionForContentType(contentType string) string {
 	switch strings.ToLower(strings.Split(contentType, ";")[0]) {
+	case "video/mp4":
+		return ".mp4"
+	case "video/webm":
+		return ".webm"
+	case "video/quicktime":
+		return ".mov"
+	case "audio/mpeg":
+		return ".mp3"
+	case "audio/wav", "audio/x-wav":
+		return ".wav"
+	case "audio/ogg":
+		return ".ogg"
 	case "image/jpeg":
 		return ".jpg"
 	case "image/webp":

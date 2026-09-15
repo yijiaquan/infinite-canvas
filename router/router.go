@@ -31,6 +31,13 @@ func New() *gin.Engine {
 	})
 	api.POST("/ai/direct-request", gin.WrapF(handler.PrepareDirectAIRequest))
 	api.POST("/ai/autodl/workflows", gin.WrapF(handler.AutoDLWorkflows))
+	api.POST("/ai/comfyui/workflows", gin.WrapF(handler.ComfyUIWorkflows))
+	api.POST("/ai/comfyui/upload", gin.WrapF(handler.ComfyUIUpload))
+	api.POST("/ai/comfyui/prompt", gin.WrapF(handler.ComfyUIPrompt))
+	api.GET("/ai/comfyui/tasks/:id", func(c *gin.Context) {
+		handler.ComfyUITask(c.Writer, c.Request, c.Param("id"))
+	})
+	api.GET("/ai/comfyui/view", gin.WrapF(handler.ComfyUIView))
 	anonymousFiles := api.Group("/anonymous/files", middleware.AnonymousStorage)
 	anonymousFiles.POST("/session", func(c *gin.Context) { c.Status(http.StatusNoContent) })
 	anonymousFiles.POST("", gin.WrapF(handler.UploadFile))
@@ -38,6 +45,13 @@ func New() *gin.Engine {
 		handler.DeleteFile(c.Writer, c.Request, c.Param("id"))
 	})
 	v1 := api.Group("/v1", middleware.UserAuth)
+	v1.POST("/ai/direct-request", gin.WrapF(handler.PrepareConfiguredDirectAIRequest))
+	v1.POST("/ai/comfyui/upload", gin.WrapF(handler.ConfiguredComfyUIUpload))
+	v1.POST("/ai/comfyui/prompt", gin.WrapF(handler.ConfiguredComfyUIPrompt))
+	v1.GET("/ai/comfyui/tasks/:id", func(c *gin.Context) {
+		handler.ConfiguredComfyUITask(c.Writer, c.Request, c.Param("id"))
+	})
+	v1.GET("/ai/comfyui/view", gin.WrapF(handler.ConfiguredComfyUIView))
 	v1.POST("/images/generations", gin.WrapF(handler.AIImagesGenerations))
 	v1.POST("/images/edits", gin.WrapF(handler.AIImagesEdits))
 	v1.POST("/responses", gin.WrapF(handler.AIResponses))
@@ -94,6 +108,73 @@ func New() *gin.Engine {
 	v1.POST("/user-config/model", gin.WrapF(handler.SaveUserModelConfig))
 	v1.POST("/user-config/storage", gin.WrapF(handler.SaveUserStorageProvider))
 	v1.GET("/canvas/projects", gin.WrapF(handler.UserCanvasProjects))
+	v1.GET("/drama/projects", gin.WrapF(handler.UserDramaProjects))
+	v1.POST("/drama/media", gin.WrapF(handler.UploadDramaMedia))
+	v1.GET("/drama/projects/:id/episodes/:episodeId/clips/:clipId/bindings/:stage", func(c *gin.Context) {
+		handler.UserDramaBinding(c.Writer, c.Request, c.Param("id"), c.Param("episodeId"), c.Param("clipId"), c.Param("stage"))
+	})
+	v1.POST("/drama/projects/:id/episodes/:episodeId/clips/:clipId/bindings/:stage", func(c *gin.Context) {
+		handler.UpdateUserDramaBinding(c.Writer, c.Request, c.Param("id"), c.Param("episodeId"), c.Param("clipId"), c.Param("stage"))
+	})
+	v1.GET("/files/:id/delete-preflight", func(c *gin.Context) { handler.PreflightDeleteFile(c.Writer, c.Request, c.Param("id")) })
+	v1.GET("/drama/projects/:id/episodes/:episodeId/runs", func(c *gin.Context) {
+		handler.DramaEpisodeRuns(c.Writer, c.Request, c.Param("id"), c.Param("episodeId"))
+	})
+	v1.GET("/drama/projects/:id/episodes/:episodeId/adoptions", func(c *gin.Context) {
+		handler.UserDramaAdoption(c.Writer, c.Request, c.Param("id"), c.Param("episodeId"), "")
+	})
+	v1.POST("/drama/projects/:id/episodes/:episodeId/clips/:clipId/import-output", func(c *gin.Context) {
+		handler.ImportUserDramaOutput(c.Writer, c.Request, c.Param("id"), c.Param("episodeId"), c.Param("clipId"))
+	})
+	v1.GET("/drama/projects/:id/assets", func(c *gin.Context) { handler.UserDramaAssets(c.Writer, c.Request, c.Param("id")) })
+	v1.POST("/drama/projects/:id/assets", func(c *gin.Context) { handler.CreateUserDramaAsset(c.Writer, c.Request, c.Param("id")) })
+	v1.POST("/drama/projects/:id/assets/:assetId", func(c *gin.Context) {
+		handler.UpdateUserDramaAsset(c.Writer, c.Request, c.Param("id"), c.Param("assetId"))
+	})
+	v1.POST("/drama/projects/:id/assets/:assetId/versions", func(c *gin.Context) {
+		handler.CreateUserDramaAssetVersion(c.Writer, c.Request, c.Param("id"), c.Param("assetId"))
+	})
+	v1.GET("/drama/projects/:id/episodes/:episodeId/export", func(c *gin.Context) {
+		handler.ExportDramaEpisode(c.Writer, c.Request, c.Param("id"), c.Param("episodeId"))
+	})
+	v1.POST("/drama/projects/:id/episodes/:episodeId/clips/reorder", func(c *gin.Context) {
+		handler.ReorderUserDramaClips(c.Writer, c.Request, c.Param("id"), c.Param("episodeId"))
+	})
+	v1.GET("/drama/projects/:id/episodes/:episodeId/clips/:clipId/adoption", func(c *gin.Context) {
+		handler.UserDramaAdoption(c.Writer, c.Request, c.Param("id"), c.Param("episodeId"), c.Param("clipId"))
+	})
+	v1.POST("/drama/projects/:id/episodes/:episodeId/clips/:clipId/adoption", func(c *gin.Context) {
+		handler.AdoptUserDramaOutput(c.Writer, c.Request, c.Param("id"), c.Param("episodeId"), c.Param("clipId"))
+	})
+	v1.GET("/drama/projects/:id/episodes/:episodeId/clips/:clipId/runs", func(c *gin.Context) {
+		handler.DramaRuns(c.Writer, c.Request, c.Param("id"), c.Param("episodeId"), c.Param("clipId"))
+	})
+	v1.POST("/drama/projects/:id/episodes/:episodeId/clips/:clipId/runs", func(c *gin.Context) {
+		handler.CreateDramaRun(c.Writer, c.Request, c.Param("id"), c.Param("episodeId"), c.Param("clipId"))
+	})
+	v1.POST("/drama/projects/:id/episodes/:episodeId/clips/:clipId/runs/preview", func(c *gin.Context) {
+		handler.PreviewDramaRun(c.Writer, c.Request, c.Param("id"), c.Param("episodeId"), c.Param("clipId"))
+	})
+	v1.POST("/drama/projects/:id/episodes/:episodeId/clips/:clipId/runs/:runId/cancel", func(c *gin.Context) {
+		handler.CancelDramaRun(c.Writer, c.Request, c.Param("id"), c.Param("episodeId"), c.Param("clipId"), c.Param("runId"))
+	})
+	v1.POST("/drama/projects/:id/episodes/:episodeId/clips/:clipId/runs/:runId/recheck", func(c *gin.Context) {
+		handler.RecheckDramaRun(c.Writer, c.Request, c.Param("id"), c.Param("episodeId"), c.Param("clipId"), c.Param("runId"))
+	})
+	v1.GET("/drama/projects/:id/episodes/:episodeId/clips", func(c *gin.Context) { handler.UserDramaClips(c.Writer, c.Request, c.Param("id"), c.Param("episodeId")) })
+	v1.POST("/drama/projects/:id/episodes/:episodeId/clips", func(c *gin.Context) {
+		handler.CreateUserDramaClip(c.Writer, c.Request, c.Param("id"), c.Param("episodeId"))
+	})
+	v1.POST("/drama/projects/:id/episodes/:episodeId/clips/:clipId", func(c *gin.Context) {
+		handler.UpdateUserDramaClip(c.Writer, c.Request, c.Param("id"), c.Param("episodeId"), c.Param("clipId"))
+	})
+	v1.POST("/drama/projects", gin.WrapF(handler.CreateUserDramaProject))
+	v1.GET("/drama/projects/:id", func(c *gin.Context) { handler.UserDramaProject(c.Writer, c.Request, c.Param("id")) })
+	v1.POST("/drama/projects/:id", func(c *gin.Context) { handler.UpdateUserDramaProject(c.Writer, c.Request, c.Param("id")) })
+	v1.POST("/drama/projects/:id/episodes", func(c *gin.Context) { handler.CreateUserDramaEpisode(c.Writer, c.Request, c.Param("id")) })
+	v1.POST("/drama/projects/:id/episodes/:episodeId", func(c *gin.Context) {
+		handler.UpdateUserDramaEpisode(c.Writer, c.Request, c.Param("id"), c.Param("episodeId"))
+	})
 	v1.POST("/canvas/projects", gin.WrapF(handler.SaveUserCanvasProject))
 	v1.POST("/canvas/projects/sync", gin.WrapF(handler.SyncUserCanvasProjects))
 	v1.POST("/canvas/projects/delete", gin.WrapF(handler.DeleteUserCanvasProjects))

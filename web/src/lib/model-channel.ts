@@ -7,6 +7,7 @@ export const modelChannelProtocols = [
     { value: "88api", label: "88API", baseUrl: "https://88api.ai/v1", apiKeyUrl: "https://88api.ai/sign-up?aff=25ty" },
     { value: "kie", label: "KIE", baseUrl: "https://api.kie.ai/api/v1", directRequestPlan: true },
     { value: "autodl", label: "AutoDL", baseUrl: "https://autodl.art", directRequestPlan: true },
+    { value: "comfyui", label: "ComfyUI（本机工作流）", baseUrl: "http://127.0.0.1:8188", directRequestPlan: true },
     { value: "ark", label: "火山方舟", baseUrl: "https://ark.cn-beijing.volces.com/api/v3", directRequestPlan: true },
     { value: "mimo", label: "MiMo", baseUrl: "https://api.xiaomimimo.com", apiKeyUrl: "https://platform.xiaomimimo.com/?ref=JFZQR2" },
 ] as const;
@@ -15,10 +16,10 @@ export type ModelChannelProtocol = (typeof modelChannelProtocols)[number]["value
 export type DirectAIProvider = Extract<(typeof modelChannelProtocols)[number], { directRequestPlan: true }>["value"];
 export const modelChannelProtocolOptions = modelChannelProtocols.map(({ value, label }) => ({ label, value }));
 export const modelChannelDefaultBaseUrls = Object.fromEntries(modelChannelProtocols.map(({ value, baseUrl }) => [value, baseUrl])) as Record<ModelChannelProtocol, string>;
-export const modelChannelApiKeyUrls = Object.fromEntries(modelChannelProtocols.flatMap((protocol) => "apiKeyUrl" in protocol ? [[protocol.value, protocol.apiKeyUrl]] : [])) as Partial<Record<ModelChannelProtocol, string>>;
+export const modelChannelApiKeyUrls = Object.fromEntries(modelChannelProtocols.flatMap((protocol) => ("apiKeyUrl" in protocol ? [[protocol.value, protocol.apiKeyUrl]] : []))) as Partial<Record<ModelChannelProtocol, string>>;
 
-const directRequestProviders: ReadonlySet<string> = new Set(modelChannelProtocols.flatMap((protocol) => "directRequestPlan" in protocol && protocol.directRequestPlan === true ? [protocol.value] : []));
+const directRequestProviders: ReadonlySet<string> = new Set(modelChannelProtocols.flatMap((protocol) => ("directRequestPlan" in protocol && protocol.directRequestPlan === true ? [protocol.value] : [])));
 
 export function directAIProviderForProtocol(protocol: string): DirectAIProvider | null {
-    return directRequestProviders.has(protocol) ? protocol as DirectAIProvider : null;
+    return directRequestProviders.has(protocol) ? (protocol as DirectAIProvider) : null;
 }

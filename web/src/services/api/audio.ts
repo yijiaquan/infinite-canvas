@@ -9,7 +9,7 @@ import { geminiActionUrl, geminiDirectHeaders, geminiErrorMessage, isGeminiConfi
 import { geminiPcmBase64ToWav, normalizeGeminiTtsVoice } from "@/lib/gemini-tts";
 import { resolveMediaUrl, uploadMediaFile, uploadRemoteMediaToServer, type UploadedFile } from "@/services/file-storage";
 import { autoSyncToCloud } from "@/services/image-storage";
-import { buildApiUrl, channelIdForActiveModel, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
+import { buildApiUrl, channelIdForActiveModel, channelProtocolForConfig, directAIProviderForConfig, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 import type { ReferenceAudio } from "@/types/media";
 
@@ -38,6 +38,7 @@ const grokTtsVoiceRequests = new Map<string, Promise<GrokTtsVoice[]>>();
 
 function usesAccountProxy(config: AiConfig) {
     const token = useUserStore.getState().token;
+    if (channelProtocolForConfig(config) === "comfyui") return false;
     return config.channelMode === "remote" || (config.channelMode === "local" && Boolean(token));
 }
 
@@ -80,8 +81,9 @@ export function fetchGrokTtsVoices(config: AiConfig, model: string) {
     const existing = grokTtsVoiceRequests.get(requestKey);
     if (existing) return existing;
 
-    const request = axios.get<{ voices?: GrokTtsVoice[] }>(aiApiUrl(requestConfig, "/tts/voices"), { headers: aiHeaders(requestConfig), params: { model } })
-        .then((response) => Array.isArray(response.data.voices) ? response.data.voices.filter((voice) => Boolean(voice.voice_id)) : [])
+    const request = axios
+        .get<{ voices?: GrokTtsVoice[] }>(aiApiUrl(requestConfig, "/tts/voices"), { headers: aiHeaders(requestConfig), params: { model } })
+        .then((response) => (Array.isArray(response.data.voices) ? response.data.voices.filter((voice) => Boolean(voice.voice_id)) : []))
         .finally(() => grokTtsVoiceRequests.delete(requestKey));
     grokTtsVoiceRequests.set(requestKey, request);
     return request;
@@ -92,16 +94,22 @@ export async function requestAudioGeneration(config: AiConfig, prompt: string, r
     assertAudioConfig(config, model);
 
     try {
+        const directProvider = !usesAccountProxy(config) ? directAIProviderForConfig(config) : null;
+        if (directProvider === "comfyui") {
+            const body = await buildAudioSpeechRequest(config, model, prompt, referenceAudio);
+            const result = await (await import("./direct-ai")).requestDirectAudioURL({ ...config, model }, directProvider, body);
+            const response = await fetch(result.url);
+            if (!response.ok) throw new Error(`读取 ComfyUI 音频失败（${response.status}）`);
+            return response.blob();
+        }
         if (isGeminiTtsModel(model) && isGeminiConfig(config, model)) {
             if (referenceAudio) throw new Error("Gemini TTS 不支持参考音频");
             const nativeBody = buildGeminiTtsRequest(config, prompt);
             const body = usesAccountProxy(config) ? { model, ...nativeBody } : nativeBody;
             const channel = localChannelForActiveModel(config);
-            const response = await axios.post<GeminiAudioResponse>(
-                usesAccountProxy(config) ? "/api/v1/audio/speech" : geminiActionUrl(channel?.baseUrl || config.baseUrl, model, "generateContent"),
-                body,
-                { headers: usesAccountProxy(config) ? aiHeaders(config) : geminiDirectHeaders(config) },
-            );
+            const response = await axios.post<GeminiAudioResponse>(usesAccountProxy(config) ? "/api/v1/audio/speech" : geminiActionUrl(channel?.baseUrl || config.baseUrl, model, "generateContent"), body, {
+                headers: usesAccountProxy(config) ? aiHeaders(config) : geminiDirectHeaders(config),
+            });
             refreshRemoteUser(config);
             return decodeGeminiAudio(response.data);
         }
@@ -132,12 +140,13 @@ export async function createCanvasAudioTask(config: AiConfig, prompt: string, op
     const model = (config.model || config.audioModel).trim();
     assertAudioConfig(config, model);
 
-    if (!usesAccountProxy(config) && isAutoDLConfig(config, model)) {
+    if (!usesAccountProxy(config) && (isAutoDLConfig(config, model) || channelProtocolForConfig({ ...config, model }) === "comfyui")) {
         const body = await buildAudioSpeechRequest(config, model, prompt, referenceAudio);
-        const result = await (await import("./direct-ai")).requestDirectAudioURL({ ...config, model }, "autodl", body);
+        const provider = channelProtocolForConfig({ ...config, model }) === "comfyui" ? "comfyui" : "autodl";
+        const result = await (await import("./direct-ai")).requestDirectAudioURL({ ...config, model }, provider, body);
         return syncGeneratedAudio({ id: options.clientTaskId || result.id, status: "completed", progress: 100, url: result.url, audio_url: result.url, mimeType: "audio/wav" }, result.id);
     }
-    if (!usesAccountProxy(config) || isGeminiTtsModel(model) && isGeminiConfig(config, model)) {
+    if (!usesAccountProxy(config) || (isGeminiTtsModel(model) && isGeminiConfig(config, model))) {
         const blob = await requestAudioGeneration(config, prompt, referenceAudio);
         const format = audioResponseFormat(config, model);
         const stored = await storeGeneratedAudio(blob, format);
@@ -344,14 +353,15 @@ function decodeMiMoAudio(payload: MiMoAudioResponse, format: string) {
 function assertAudioConfig(config: AiConfig, model: string) {
     if (!model) throw new Error("请先配置音频模型");
     if (config.channelMode !== "local") return;
-    if (!isMimoTtsModel(model) && !isGeminiConfig(config, model) && !isAutoDLConfig(config, model)) {
+    const comfyUI = channelProtocolForConfig({ ...config, model }) === "comfyui";
+    if (!isMimoTtsModel(model) && !isGeminiConfig(config, model) && !isAutoDLConfig(config, model) && !comfyUI) {
         if (!config.baseUrl.trim()) throw new Error("请先配置 Base URL");
         if (!config.apiKey.trim()) throw new Error("请先配置 API Key");
         return;
     }
     const channel = localChannelForActiveModel(config);
     if (!(channel?.baseUrl || config.baseUrl).trim()) throw new Error("请先配置 Base URL");
-    if (!(channel?.apiKey || config.apiKey).trim()) throw new Error("请先配置 API Key");
+    if (!comfyUI && !(channel?.apiKey || config.apiKey).trim()) throw new Error("请先配置 API Key");
 }
 
 async function assertAudioBlob(blob: Blob) {

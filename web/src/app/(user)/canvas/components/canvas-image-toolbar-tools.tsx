@@ -110,7 +110,7 @@ export const imageToolDefinitions: ImageToolDefinition[] = [
     },
     {
         id: "upscale",
-        defaultVisible: true,
+        defaultVisible: false,
         panelLabel: "放大",
         label: "放大",
         title: "放大图片分辨率",
@@ -119,10 +119,10 @@ export const imageToolDefinitions: ImageToolDefinition[] = [
     },
     {
         id: "superResolve",
-        defaultVisible: false,
-        panelLabel: "超分",
-        label: "超分",
-        title: "AI 超分",
+        defaultVisible: true,
+        panelLabel: "高清",
+        label: "高清",
+        title: "创建高清处理节点",
         icon: () => <Sparkles className="size-4" />,
         run: (node, handlers) => handlers.onSuperResolve(node),
     },

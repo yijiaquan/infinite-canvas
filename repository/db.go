@@ -47,6 +47,7 @@ func DB() (*gorm.DB, error) {
 		dsn := config.Cfg.DatabaseDSN
 		if driver == "sqlite" && dsn != ":memory:" {
 			_ = os.MkdirAll(filepath.Dir(dsn), 0755)
+			dsn = sqliteDSN(dsn)
 		}
 		if isPostgresDriver(driver) {
 			dbErr = ensurePostgresDatabase(dsn)
@@ -63,6 +64,17 @@ func DB() (*gorm.DB, error) {
 		db, dbErr = gorm.Open(dialector(driver, dsn), &gorm.Config{})
 		if dbErr != nil {
 			return
+		}
+		if driver == "sqlite" {
+			connection, err := db.DB()
+			if err != nil {
+				dbErr = err
+				return
+			}
+			// SQLite has one writer. Keeping one pooled connection prevents
+			// concurrent canvas saves from nesting transactions on the same file.
+			connection.SetMaxOpenConns(1)
+			connection.SetMaxIdleConns(1)
 		}
 		dbErr = db.AutoMigrate(
 			&model.User{},
@@ -82,9 +94,33 @@ func DB() (*gorm.DB, error) {
 			&model.CanvasImageTask{},
 			&model.CanvasAudioTask{},
 			&model.CanvasProject{},
+			&model.DramaProject{},
+			&model.DramaEpisode{},
+			&model.DramaClip{},
+			&model.DramaAsset{},
+			&model.DramaAssetVersion{},
+			&model.DramaRun{},
+			&model.DramaAdoption{},
+			&model.DramaBinding{},
 		)
 	})
 	return db, dbErr
+}
+
+func sqliteDSN(dsn string) string {
+	lower := strings.ToLower(dsn)
+	separator := "?"
+	if strings.Contains(dsn, "?") {
+		separator = "&"
+	}
+	if !strings.Contains(lower, "_pragma=busy_timeout") {
+		dsn += separator + "_pragma=busy_timeout(10000)"
+		separator = "&"
+	}
+	if !strings.Contains(lower, "_pragma=journal_mode") {
+		dsn += separator + "_pragma=journal_mode(WAL)"
+	}
+	return dsn
 }
 
 func dialector(driver string, dsn string) gorm.Dialector {

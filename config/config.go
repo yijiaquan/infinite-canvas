@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/caarlos0/env/v11"
@@ -32,7 +33,7 @@ func Load() error {
 	if err := env.Parse(&Cfg); err != nil {
 		return err
 	}
-	normalizeDockerSQLiteDSN("/app/data")
+	normalizeDockerSQLiteDSN("/app/data", runtime.GOOS)
 	if strings.TrimSpace(Cfg.JWTSecret) == "" || Cfg.JWTSecret == "infinite-canvas" {
 		secret, err := randomSecret()
 		if err != nil {
@@ -43,7 +44,10 @@ func Load() error {
 	return nil
 }
 
-func normalizeDockerSQLiteDSN(appDataDir string) {
+func normalizeDockerSQLiteDSN(appDataDir, platform string) {
+	if platform != "linux" {
+		return
+	}
 	driver := strings.ToLower(strings.TrimSpace(Cfg.StorageDriver))
 	if driver != "" && driver != "sqlite" {
 		return

@@ -47,6 +47,6 @@ codex mcp add infinite-canvas -- npx -y @tigerowo/canvas-agent@latest mcp
 
 `CANVAS_AGENT_TOKEN`、`CANVAS_AGENT_PORT`、`CANVAS_AGENT_ORIGINS` 可选环境变量覆盖 Token、端口和预置来源；更改后重启服务。通常无需设置。
 
-外部 MCP 默认只操作唯一已连接的画布；多个画布连接时，通过 MCP 环境变量 `CANVAS_AGENT_CLIENT_ID` 明确目标。断开连接会结束对应 Codex 进程，已提交的生成任务仍由现有画布流程处理。
+外部 MCP 默认操作浏览器最后聚焦的活动画布；切换画布、切换标签页或页面重新显示时会自动更新目标。显式设置 MCP 环境变量 `CANVAS_AGENT_CLIENT_ID` 时仍固定操作指定连接。断开连接会结束对应 Codex 进程，已提交的生成任务仍由现有画布流程处理。
 
 默认权限为 `workspace-write` 与 `on-request`，工作目录为实际 Agent 包目录。服务不写 Codex 全局配置文件；其他全局 MCP 是否合并到当前会话尚未联调确认。

@@ -3,7 +3,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import dynamic from "next/dynamic";
-import { ChevronRight, Image as ImageIcon, Maximize2, Music2, Pause, Play, RefreshCw, Star, Video } from "lucide-react";
+import { ChevronRight, ChevronsDownUp, ChevronsUpDown, Image as ImageIcon, Maximize2, Music2, Pause, Play, RefreshCw, Star, Video } from "lucide-react";
+import { Tooltip } from "antd";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { formatBytes, formatDuration } from "@/lib/image-utils";
@@ -51,6 +52,8 @@ type CanvasNodeProps = {
     onSetBatchPrimary?: (node: CanvasNodeData) => void;
     onRetry?: (node: CanvasNodeData) => void;
     onViewImage?: (node: CanvasNodeData) => void;
+    onOpenDramaClip?: () => void;
+    onToggleDramaGroup?: () => void;
     onSelectReference?: (nodeId: string) => void;
     onContextMenu: (event: React.MouseEvent, nodeId: string) => void;
 };
@@ -112,6 +115,8 @@ export const CanvasNode = React.memo(function CanvasNode({
     onSetBatchPrimary,
     onRetry,
     onViewImage,
+    onOpenDramaClip,
+    onToggleDramaGroup,
     onSelectReference,
     onContextMenu,
 }: CanvasNodeProps) {
@@ -356,6 +361,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                 }}
                 onMouseDown={(event) => onMouseDown(event, data.id)}
                 onDoubleClick={(event) => {
+                    if (onOpenDramaClip && !referenceSelectionState) { event.preventDefault(); event.stopPropagation(); onOpenDramaClip(); return; }
                     if (referenceSelectionState) {
                         event.preventDefault();
                         event.stopPropagation();
@@ -427,10 +433,15 @@ export const CanvasNode = React.memo(function CanvasNode({
                     </div>
                 ) : null}
 
-                {!referenceSelectionState ? <ResizeHandle corner="top-left" onMouseDown={handleResizeMouseDown} /> : null}
-                {!referenceSelectionState ? <ResizeHandle corner="top-right" onMouseDown={handleResizeMouseDown} /> : null}
-                {!referenceSelectionState ? <ResizeHandle corner="bottom-left" onMouseDown={handleResizeMouseDown} /> : null}
-                {!referenceSelectionState ? <ResizeHandle corner="bottom-right" onMouseDown={handleResizeMouseDown} /> : null}
+                {onToggleDramaGroup && !referenceSelectionState ? <Tooltip title={data.metadata?.dramaCollapsed ? "展开 Clip" : "折叠 Clip"}>
+                    <button type="button" aria-label={data.metadata?.dramaCollapsed ? "展开 Clip" : "折叠 Clip"} className="absolute right-3 top-3 z-20 flex size-8 items-center justify-center rounded hover:opacity-70" style={{ color: theme.node.text }} onPointerDown={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onToggleDramaGroup(); }}>
+                        {data.metadata?.dramaCollapsed ? <ChevronsUpDown size={18} /> : <ChevronsDownUp size={18} />}
+                    </button>
+                </Tooltip> : null}
+                {!referenceSelectionState && !data.metadata?.dramaCollapsed ? <ResizeHandle corner="top-left" onMouseDown={handleResizeMouseDown} /> : null}
+                {!referenceSelectionState && !data.metadata?.dramaCollapsed ? <ResizeHandle corner="top-right" onMouseDown={handleResizeMouseDown} /> : null}
+                {!referenceSelectionState && !data.metadata?.dramaCollapsed ? <ResizeHandle corner="bottom-left" onMouseDown={handleResizeMouseDown} /> : null}
+                {!referenceSelectionState && !data.metadata?.dramaCollapsed ? <ResizeHandle corner="bottom-right" onMouseDown={handleResizeMouseDown} /> : null}
             </div>
 
             {!referenceSelectionState && !isGroup ? (

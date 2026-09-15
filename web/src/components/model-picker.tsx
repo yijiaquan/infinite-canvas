@@ -18,20 +18,29 @@ type ModelPickerProps = {
     fullWidth?: boolean;
     placeholder?: string;
     onMissingConfig?: () => void;
+    modelScope?: "generation" | "upscale";
 };
 
-export function ModelPicker({ config, value, channelId, capability, onChange, className, fullWidth = false, placeholder = "选择模型", onMissingConfig }: ModelPickerProps) {
+const upscaleModels = new Set(["comfyui:seedvr2-image-upscale", "comfyui:vosr2-image-upscale", "comfyui:seedvr2-upscale"]);
+
+export function ModelPicker({ config, value, channelId, capability, onChange, className, fullWidth = false, placeholder = "选择模型", onMissingConfig, modelScope = "generation" }: ModelPickerProps) {
     const pickerId = useId();
     const [open, setOpen] = useState(false);
     const channelOptions = useMemo(() => {
+        const allowedModels = config.channelMode === "remote" ? new Set(config.models) : null;
         const channels =
             config.channelMode === "remote"
                 ? config.publicChannels.map((channel) => ({ id: channel.id, protocol: channel.protocol, name: channel.name || "云端渠道", baseUrl: channel.baseUrl, models: channel.models }))
                 : normalizeLocalChannels(config).map((channel) => ({ id: channel.id, protocol: channel.protocol, name: channel.name || "本地渠道", baseUrl: channel.baseUrl, models: channel.models }));
-        const models = channels.flatMap((channel) => (channel.models ?? []).map((model) => ({ key: `${channel.id}::${model}`, channelId: channel.id, channelName: channel.name, protocol: channel.protocol, baseUrl: channel.baseUrl, model })));
-        if (!capability) return models;
-        return models.filter((item) => filterModelsByCapability([item.model], capability, item.protocol || "").length > 0);
-    }, [capability, config]);
+        const models = channels.flatMap((channel) =>
+            (channel.models ?? [])
+                .filter((model) => !allowedModels || allowedModels.has(model))
+                .map((model) => ({ key: `${channel.id}::${model}`, channelId: channel.id, channelName: channel.name, protocol: channel.protocol, baseUrl: channel.baseUrl, model })),
+        );
+        const scoped = models.filter((item) => (modelScope === "upscale" ? upscaleModels.has(item.model) : !upscaleModels.has(item.model)));
+        if (!capability) return scoped;
+        return scoped.filter((item) => filterModelsByCapability([item.model], capability, item.protocol || "").length > 0);
+    }, [capability, config, modelScope]);
     const modelLabel = useAutoDLWorkflowNames(channelOptions);
     const currentOption = useMemo(() => {
         if (!value) return undefined;
@@ -114,7 +123,9 @@ function ModelLabel({ model, label, channelName }: { model: string; label?: stri
     return (
         <span className="flex min-w-0 items-center gap-2">
             <ModelIcon model={model} />
-            <span className="truncate" title={model}>{label || model}</span>
+            <span className="truncate" title={model}>
+                {label || model}
+            </span>
             {channelName ? <span className="ml-auto max-w-24 shrink-0 truncate text-xs opacity-50">{channelName}</span> : null}
         </span>
     );

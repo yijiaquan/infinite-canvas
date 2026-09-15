@@ -41,6 +41,8 @@ export function createCodexAgentClient(
     const lifetime = new AbortController();
     let codexGeneration = 0;
     let serviceId = "";
+    let registered = false;
+    let activitySequence = 0;
     const syncCodexGeneration = (generation: number, message: string) => {
         if (!(generation > codexGeneration)) return;
         const previous = codexGeneration;
@@ -81,7 +83,25 @@ export function createCodexAgentClient(
     });
     listen<CodexToolEvent>("tool", (event) => { if (event.source === "external" || event.generation === codexGeneration) handlers.tool(event); });
     listen<{ requestId: string }>("tool-cancel", ({ requestId }) => handlers.cancelTool(requestId));
-    events.onopen = () => { void request<{ serviceId: string }>("/connect", { canvasId, tools }).then((result) => { serviceId = result.serviceId; return handlers.ready(); }).catch(fail); };
+    const activity = () => ({ sequence: ++activitySequence, observedAt: Date.now() });
+    const isActivePage = () => document.visibilityState === "visible" && document.hasFocus();
+    const activate = () => {
+        if (!registered || !isActivePage() || lifetime.signal.aborted) return;
+        void request("/activate", { canvasId, ...activity() }).catch(fail);
+    };
+    window.addEventListener("focus", activate);
+    window.addEventListener("pageshow", activate);
+    document.addEventListener("visibilitychange", activate);
+    events.onopen = () => {
+        const currentActivity = isActivePage() ? activity() : undefined;
+        void request<{ serviceId: string }>("/connect", { canvasId, tools, activity: currentActivity })
+            .then((result) => {
+                registered = true;
+                serviceId = result.serviceId;
+                return handlers.ready();
+            })
+            .catch(fail);
+    };
     events.onerror = () => fail(new Error("本地 Agent 连接已断开，请检查服务和连接配置"));
     return {
         rpc,
@@ -91,6 +111,13 @@ export function createCodexAgentClient(
         result: (requestId: string, result?: unknown, error?: string) => request("/result", { requestId, result, error }),
         connected: () => events.readyState === EventSource.OPEN,
         signal: lifetime.signal,
-        close: () => { events.close(); lifetime.abort(); },
+        close: () => {
+            registered = false;
+            window.removeEventListener("focus", activate);
+            window.removeEventListener("pageshow", activate);
+            document.removeEventListener("visibilitychange", activate);
+            events.close();
+            lifetime.abort();
+        },
     };
 }

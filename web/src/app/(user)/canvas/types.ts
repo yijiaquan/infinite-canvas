@@ -33,6 +33,18 @@ export type CameraControlOptions = {
 };
 
 export type CanvasNodeMetadata = {
+    processingMode?: "super-resolution";
+    dramaClipId?: string;
+    dramaAssetId?: string;
+    dramaRole?: "group" | "storyboard" | "video" | "reference";
+    dramaBindingTarget?: string;
+    dramaAssetVersionId?: string;
+    dramaInputRole?: string;
+    dramaInputOrder?: number;
+    dramaCollapsed?: boolean;
+    dramaRunId?: string;
+    dramaParameters?: Record<string,string|number|boolean>;
+    dramaNeedsReview?: boolean;
     content?: string;
     groupId?: string;
     composerContent?: string;
@@ -143,6 +155,10 @@ export type CanvasConnection = {
     id: string;
     fromNodeId: string;
     toNodeId: string;
+    dramaAssetVersionId?: string;
+    dramaInputRole?: string;
+    dramaInputOrder?: number;
+    dramaInputSpeaker?: string;
 };
 
 export type CanvasAssistantReference = {
@@ -158,10 +174,10 @@ export type CanvasAssistantReference = {
 };
 
 export type InsertAssetPayload =
-    | { kind: "text"; content: string; title: string; assetId?: string; source?: "asset" | "library" }
-    | { kind: "image"; dataUrl: string; title: string; storageKey?: string; assetId?: string; width?: number; height?: number; bytes?: number; mimeType?: string; source?: "asset" | "library" }
-    | { kind: "video"; url: string; title: string; storageKey?: string; assetId?: string; width?: number; height?: number; bytes?: number; mimeType?: string; source?: "asset" | "library" }
-    | { kind: "audio"; url: string; title: string; storageKey?: string; assetId?: string; bytes?: number; mimeType?: string; durationMs?: number; source?: "asset" | "library" };
+    | { kind: "text"; content: string; title: string; assetId?: string; source?: "asset" | "library" | "project" }
+    | { kind: "image"; dataUrl: string; title: string; storageKey?: string; assetId?: string; width?: number; height?: number; bytes?: number; mimeType?: string; source?: "asset" | "library" | "project" }
+    | { kind: "video"; url: string; title: string; storageKey?: string; assetId?: string; width?: number; height?: number; bytes?: number; mimeType?: string; source?: "asset" | "library" | "project" }
+    | { kind: "audio"; url: string; title: string; storageKey?: string; assetId?: string; bytes?: number; mimeType?: string; durationMs?: number; source?: "asset" | "library" | "project" };
 
 export type PendingAgentAsset = {
     nodeId: string;
@@ -180,7 +196,7 @@ export type CanvasAssistantImage = {
     dataUrl: string;
     storageKey?: string;
     prompt: string;
-    source?: "asset" | "library";
+    source?: "asset" | "library" | "project";
 };
 
 export type CanvasAgentSkillSelection = {

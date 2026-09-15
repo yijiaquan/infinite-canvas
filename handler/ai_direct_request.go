@@ -23,6 +23,7 @@ type directAIRequestInput struct {
 }
 
 type directAIChannelInput struct {
+	ID       string `json:"id"`
 	Protocol string `json:"protocol"`
 	BaseURL  string `json:"baseUrl"`
 }
@@ -44,18 +45,11 @@ type directAIUpload struct {
 }
 
 func PrepareDirectAIRequest(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, directAIRequestBodyLimit)
-	var input directAIRequestInput
-	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		if errors.Is(err, io.EOF) {
-			Fail(w, "请求参数不能为空")
-			return
-		}
-		Fail(w, "请求参数格式错误")
+	input, ok := readDirectAIRequestInput(w, r)
+	if !ok {
 		return
 	}
-
-	plan, err := prepareDirectAIRequest(input)
+	plan, err := prepareDirectAIRequest(input, "")
 	if err != nil {
 		Fail(w, err.Error())
 		return
@@ -63,7 +57,46 @@ func PrepareDirectAIRequest(w http.ResponseWriter, r *http.Request) {
 	OK(w, plan)
 }
 
-func prepareDirectAIRequest(input directAIRequestInput) (directAIRequestPlan, error) {
+func PrepareConfiguredDirectAIRequest(w http.ResponseWriter, r *http.Request) {
+	input, ok := readDirectAIRequestInput(w, r)
+	if !ok {
+		return
+	}
+	user, authenticated := service.UserFromContext(r.Context())
+	if !authenticated {
+		Fail(w, "未登录或权限不足")
+		return
+	}
+	channel, _, err := selectAIRequestChannel(user, input.Model, input.Channel.ID, "")
+	if err != nil {
+		failAIChannelSelect(w, err, "AI 接口请求失败")
+		return
+	}
+	input.Channel.Protocol = channel.Protocol
+	input.Channel.BaseURL = channel.BaseURL
+	plan, err := prepareDirectAIRequest(input, channel.ID)
+	if err != nil {
+		Fail(w, err.Error())
+		return
+	}
+	OK(w, plan)
+}
+
+func readDirectAIRequestInput(w http.ResponseWriter, r *http.Request) (directAIRequestInput, bool) {
+	r.Body = http.MaxBytesReader(w, r.Body, directAIRequestBodyLimit)
+	var input directAIRequestInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		if errors.Is(err, io.EOF) {
+			Fail(w, "请求参数不能为空")
+			return directAIRequestInput{}, false
+		}
+		Fail(w, "请求参数格式错误")
+		return directAIRequestInput{}, false
+	}
+	return input, true
+}
+
+func prepareDirectAIRequest(input directAIRequestInput, configuredChannelID string) (directAIRequestPlan, error) {
 	input.Model = strings.TrimSpace(input.Model)
 	input.Endpoint = strings.TrimSpace(input.Endpoint)
 	input.Channel.Protocol = strings.TrimSpace(input.Channel.Protocol)
@@ -71,8 +104,33 @@ func prepareDirectAIRequest(input directAIRequestInput) (directAIRequestPlan, er
 	if input.Model == "" {
 		return directAIRequestPlan{}, errors.New("缺少模型名称")
 	}
-	if !isDirectAIEndpoint(input.Endpoint) && !(strings.EqualFold(input.Channel.Protocol, service.ModelChannelProtocolAutoDL) && input.Endpoint == "/audio/speech") {
+	if !isDirectAIEndpoint(input.Endpoint) && !((strings.EqualFold(input.Channel.Protocol, service.ModelChannelProtocolAutoDL) || service.IsComfyUIChannel(input.Channel.Protocol)) && input.Endpoint == "/audio/speech") {
 		return directAIRequestPlan{}, errors.New("当前接口不支持本地参数转译")
+	}
+	if service.IsComfyUIChannel(input.Channel.Protocol) {
+		if err := validateDirectAIRequestValue(input.Body); err != nil {
+			return directAIRequestPlan{}, err
+		}
+		payload, _, err := service.PrepareComfyUIWorkflow(input.Channel.BaseURL, input.Model, input.Endpoint, directAIMap(input.Body))
+		if err != nil {
+			return directAIRequestPlan{}, err
+		}
+		baseURL, err := service.ValidateComfyUIBaseURL(input.Channel.BaseURL)
+		if err != nil {
+			return directAIRequestPlan{}, err
+		}
+		query := "baseUrl=" + url.QueryEscape(baseURL)
+		prefix := "/api/ai/comfyui"
+		if configuredChannelID != "" {
+			query = "channelId=" + url.QueryEscape(configuredChannelID) + "&model=" + url.QueryEscape(input.Model)
+			prefix = "/api/v1/ai/comfyui"
+		}
+		upload := directAIUpload{URL: prefix + "/upload?" + query, FileField: "image", ResponsePaths: []string{"name"}}
+		return directAIRequestPlan{
+			Provider: "comfyui", URL: prefix + "/prompt?" + query,
+			ContentType: "application/json", Body: payload,
+			Uploads: map[string]directAIUpload{"image": upload, "video": upload, "audio": upload},
+		}, nil
 	}
 	if err := validateDirectAIBaseURL(input.Channel.BaseURL); err != nil {
 		return directAIRequestPlan{}, err
@@ -122,6 +180,13 @@ func prepareDirectAIRequest(input directAIRequestInput) (directAIRequestPlan, er
 		Body:        translated,
 		Uploads:     uploads,
 	}, nil
+}
+
+func directAIMap(value any) map[string]any {
+	if result, ok := value.(map[string]any); ok {
+		return result
+	}
+	return map[string]any{}
 }
 
 func isDirectAIEndpoint(endpoint string) bool {

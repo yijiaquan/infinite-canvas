@@ -21,6 +21,8 @@ var defaultAgentSkillFS embed.FS
 type defaultAgentSkillMetadata struct {
 	Name        string `yaml:"name"`
 	Description string `yaml:"description"`
+	ID          string `yaml:"id"`
+	Version     int    `yaml:"version"`
 }
 
 type defaultAgentSkillPackage struct {
@@ -29,41 +31,77 @@ type defaultAgentSkillPackage struct {
 	Description string
 	Content     string
 	Files       []model.AgentSkillFile
+	ID          string
+	Version     int
+	ManagedKey  model.SettingKey
 }
 
-// EnsureDefaultAgentSkills 只在数据库首次初始化时导入 service/skills 中的默认 Skill 包。
+const managedAIDramaProductionSkillID = "agent-skill-default-ai-drama-production"
+
+// EnsureDefaultAgentSkills 首次导入默认 Skill，并按版本升级托管的系统 Skill 包。
 func EnsureDefaultAgentSkills() error {
-	initialized, err := repository.AgentSkillsInitialized()
-	if err != nil || initialized {
-		return err
-	}
-	existing, err := repository.ListSystemAgentSkills()
-	if err != nil {
-		return err
-	}
-	current := now()
-	if len(existing) > 0 {
-		return repository.MarkAgentSkillsInitialized(current)
-	}
 	packages, err := readDefaultAgentSkillPackages()
 	if err != nil {
 		return err
 	}
-	items := make([]model.AgentSkill, 0, len(packages))
-	fileGroups := make([][]model.AgentSkillFile, 0, len(packages))
-	for index, item := range packages {
-		id := defaultAgentSkillID(item.Root)
-		files, err := normalizeAgentSkillFiles(id, item.Files, current)
+	initialized, err := repository.AgentSkillsInitialized()
+	if err != nil {
+		return err
+	}
+	current := now()
+	if !initialized {
+		existing, err := repository.ListSystemAgentSkills()
 		if err != nil {
 			return err
 		}
-		items = append(items, model.AgentSkill{
-			ID: id, Source: model.AgentSkillSourceSystem, Name: item.Name, Description: item.Description,
-			Content: item.Content, Enabled: true, Sort: index, CreatedAt: current, UpdatedAt: current,
-		})
-		fileGroups = append(fileGroups, files)
+		if len(existing) > 0 {
+			if err := repository.MarkAgentSkillsInitialized(current); err != nil {
+				return err
+			}
+		} else {
+			items := make([]model.AgentSkill, 0, len(packages))
+			fileGroups := make([][]model.AgentSkillFile, 0, len(packages))
+			for index, item := range packages {
+				files, err := normalizeAgentSkillFiles(item.ID, item.Files, current)
+				if err != nil {
+					return err
+				}
+				items = append(items, model.AgentSkill{
+					ID: item.ID, Source: model.AgentSkillSourceSystem, Name: item.Name, Description: item.Description,
+					Content: item.Content, Enabled: true, Sort: index, CreatedAt: current, UpdatedAt: current,
+				})
+				fileGroups = append(fileGroups, files)
+			}
+			if err := repository.InitializeAgentSkills(items, fileGroups, current); err != nil {
+				return err
+			}
+		}
 	}
-	return repository.InitializeAgentSkills(items, fileGroups, current)
+	return reconcileManagedAgentSkillPackages(packages, current)
+}
+
+func reconcileManagedAgentSkillPackages(packages []defaultAgentSkillPackage, current string) error {
+	for index, item := range packages {
+		if item.ManagedKey == "" || item.Version < 1 {
+			continue
+		}
+		state, found, err := repository.GetAgentSkillPackageState(item.ManagedKey)
+		if err != nil {
+			return err
+		}
+		if state.Deleted || found && state.Version >= item.Version {
+			continue
+		}
+		files, err := normalizeAgentSkillFiles(item.ID, item.Files, current)
+		if err != nil {
+			return err
+		}
+		skill := model.AgentSkill{ID: item.ID, Source: model.AgentSkillSourceSystem, Name: item.Name, Description: item.Description, Content: item.Content, Enabled: true, Sort: index, CreatedAt: current, UpdatedAt: current}
+		if err := repository.UpgradeManagedAgentSkillPackage(skill, files, item.ManagedKey, item.Version, current); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func readDefaultAgentSkillPackages() ([]defaultAgentSkillPackage, error) {
@@ -77,7 +115,7 @@ func readDefaultAgentSkillPackages() ([]defaultAgentSkillPackage, error) {
 		if !entry.IsDir() {
 			if path.Dir(filePath) == "skills" && strings.EqualFold(path.Ext(filePath), ".md") {
 				roots = append(roots, filePath)
-			} else if strings.EqualFold(path.Base(filePath), "SKILL.md") {
+			} else if strings.EqualFold(path.Base(filePath), "SKILL.md") && path.Dir(path.Dir(filePath)) == "skills" {
 				roots = append(roots, path.Dir(filePath))
 			}
 		}
@@ -113,7 +151,16 @@ func readDefaultAgentSkillPackages() ([]defaultAgentSkillPackage, error) {
 		if strings.TrimSpace(content) == "" || utf8.RuneCountInString(content) > maxAgentSkillContentLength {
 			return nil, fmt.Errorf("默认 Skill %s 的 SKILL.md 为空或超过 20000 字", root)
 		}
-		item := defaultAgentSkillPackage{Root: root, Name: name, Description: strings.TrimSpace(metadata.Description), Content: content}
+		id := defaultAgentSkillID(root)
+		managedKey := model.SettingKey("")
+		if strings.TrimSpace(metadata.ID) != "" {
+			if metadata.ID != "ai-drama-production" || metadata.Version < 1 {
+				return nil, fmt.Errorf("默认 Skill %s 的托管标识或版本无效", root)
+			}
+			id = managedAIDramaProductionSkillID
+			managedKey = model.SettingKeyAIDramaProductionSkill
+		}
+		item := defaultAgentSkillPackage{Root: root, Name: name, Description: strings.TrimSpace(metadata.Description), Content: content, ID: id, Version: metadata.Version, ManagedKey: managedKey}
 		if !rootEntry.IsDir() {
 			packages = append(packages, item)
 			continue
@@ -141,6 +188,22 @@ func readDefaultAgentSkillPackages() ([]defaultAgentSkillPackage, error) {
 		packages = append(packages, item)
 	}
 	return packages, nil
+}
+
+func managedAgentSkillPackage(id string) (model.SettingKey, int) {
+	if id != managedAIDramaProductionSkillID {
+		return "", 0
+	}
+	packages, err := readDefaultAgentSkillPackages()
+	if err != nil {
+		return model.SettingKeyAIDramaProductionSkill, 1
+	}
+	for _, item := range packages {
+		if item.ID == id {
+			return item.ManagedKey, item.Version
+		}
+	}
+	return model.SettingKeyAIDramaProductionSkill, 1
 }
 
 func defaultAgentSkillRoot(filePath string, roots []string) string {

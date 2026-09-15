@@ -5,7 +5,7 @@
     "bin": {
         "canvas-agent": "index.mjs"
     },
-    "files": ["index.mjs", "codex.mjs"],
+    "files": ["index.mjs", "codex.mjs", "media-result.mjs", "session-registry.mjs"],
     "publishConfig": {
         "access": "public"
     },
@@ -16,7 +16,8 @@
     },
     "scripts": {
         "start": "node index.mjs",
-        "codex": "codex"
+        "codex": "codex",
+        "test": "node --test *.test.mjs"
     },
     "engines": {
         "node": ">=22"

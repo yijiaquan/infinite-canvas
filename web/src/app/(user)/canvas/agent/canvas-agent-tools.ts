@@ -3,10 +3,18 @@ import { nanoid } from "nanoid";
 import type { CanvasAgentPhase } from "../types";
 
 export const CANVAS_AGENT_ACTION_NAMES = [
+    "get_drama_project", "get_drama_episode", "get_drama_clips", "get_drama_assets",
+    "update_drama_project", "update_drama_episode", "create_drama_clip", "update_drama_clip",
+    "reorder_drama_clips", "archive_drama_clip", "restore_drama_clip",
+    "create_drama_asset", "update_drama_asset", "generate_drama_asset_candidate", "register_drama_asset_version",
+    "get_drama_binding", "update_drama_binding", "prepare_drama_clip_nodes", "repair_drama_clip_group_layout", "update_drama_generation_node",
+    "get_drama_runs", "preview_drama_run", "enqueue_drama_run", "cancel_drama_run", "recheck_drama_run",
+    "get_drama_adoptions", "adopt_drama_output", "export_drama_episode",
     "get_canvas_summary",
     "get_selected_nodes",
     "query_canvas_nodes",
     "get_node",
+    "get_media_content",
     "get_upstream_nodes",
     "get_downstream_nodes",
     "get_connected_nodes",
@@ -71,6 +79,31 @@ const STRING_ARRAY = { type: "array", items: { type: "string" }, maxItems: 50 };
 const PHASES: CanvasAgentPhase[] = ["intake", "concept", "script", "breakdown", "references", "storyboard", "video", "audio", "review", "complete"];
 const NODE_TYPES = ["image", "panorama", "text", "config", "video", "audio", "director", "group"];
 const ACTION_NAME_SET = new Set<string>(CANVAS_AGENT_ACTION_NAMES);
+const DRAMA_REVISION = { type: "integer", minimum: 1 };
+const DRAMA_INITIAL_REVISION = { type: "integer", minimum: 0 };
+const DRAMA_STAGE = { type: "string", enum: ["storyboard", "video"] };
+const DRAMA_ASSET_KIND = { type: "string", enum: ["character", "scene", "prop", "voice", "reference"] };
+const DRAMA_PARAMETERS = {
+    type: "object",
+    properties: {
+        steps: { type: "integer", minimum: 1, maximum: 1000 },
+        seed: { type: "integer", minimum: 0, maximum: Number.MAX_SAFE_INTEGER },
+        seconds: { type: "number", exclusiveMinimum: 0, maximum: Number.MAX_SAFE_INTEGER },
+        size: { type: "string", maxLength: 100 },
+        resolution_name: { type: "string", enum: ["480p", "720p", "1080p"] },
+    },
+    additionalProperties: false,
+};
+const DRAMA_GENERATION_DEFAULTS = { type: "object", properties: { image: DRAMA_PARAMETERS, video: DRAMA_PARAMETERS }, additionalProperties: false };
+const DRAMA_BINDING_REFERENCES = { type: "array", maxItems: 50, items: { type: "object", properties: { assetId: STRING, versionId: STRING, role: STRING, order: { type: "integer", minimum: 0 }, speaker: STRING }, required: ["assetId", "versionId", "role", "order", "speaker"], additionalProperties: false } };
+const DRAMA_SHOT_PROPERTIES = {
+    id: STRING, title: STRING, duration: { type: "number", exclusiveMinimum: 0 }, action: STRING,
+    dialogue: STRING, speaker: STRING, camera: STRING, sound: STRING, entryState: STRING, exitState: STRING,
+};
+const DRAMA_CLIP_PROPERTIES = {
+    title: STRING, scene: STRING, summary: STRING, entryState: STRING, exitState: STRING,
+    shots: { type: "array", maxItems: 200, items: { type: "object", properties: DRAMA_SHOT_PROPERTIES, required: Object.keys(DRAMA_SHOT_PROPERTIES), additionalProperties: false } },
+};
 
 function defineTool(name: CanvasAgentActionName, description: string, properties: Record<string, unknown> = {}, required?: string[]): CanvasAgentToolDefinition {
     return {
@@ -91,7 +124,36 @@ function defineTool(name: CanvasAgentActionName, description: string, properties
 export const CANVAS_AGENT_SKILL_FILE_TOOL = defineTool("read_skill_file", "按相对路径读取当前激活系统 Skill 的附属 Markdown 或文本文件。仅当 SKILL.md 明确引用附属文件时使用。", { skillId: STRING, path: STRING }, ["skillId", "path"]);
 
 export const CANVAS_AGENT_TOOLS: CanvasAgentToolDefinition[] = [
+    defineTool("get_drama_project", "读取当前正式集画布所属项目与分集，含来源正文、改编蓝图、风格和版本。"),
+    defineTool("get_drama_episode", "读取当前集的正式剧本与版本。"),
+    defineTool("get_drama_clips", "读取当前集所有 Clip、镜头、顺序与版本，包括回收站。"),
+    defineTool("get_drama_assets", "读取当前剧集项目的共享资产与固定版本。"),
+    defineTool("update_drama_project", "按已读取版本局部更新当前项目正文与公开图片/视频默认参数，不自动改编或生成。", { expectedRevision: DRAMA_REVISION, title: STRING, sourceType: { type: "string", enum: ["novel", "script"] }, sourceText: STRING, adaptation: STRING, globalStyle: STRING, generationDefaults: DRAMA_GENERATION_DEFAULTS }, ["expectedRevision"]),
+    defineTool("update_drama_episode", "按已读取版本局部更新当前集正式剧本，不创建另一份剧本节点。", { expectedRevision: DRAMA_REVISION, title: STRING, script: STRING }, ["expectedRevision"]),
+    defineTool("create_drama_clip", "在当前集创建一个 Clip 与实际 Shot，不创建画布节点、不提交媒体生成。每个 Shot 使用独立稳定 ID。", DRAMA_CLIP_PROPERTIES, ["title"]),
+    defineTool("update_drama_clip", "按已读取版本局部更新当前集 Clip，保留未指定字段；shots 为完整替换，保留原 Shot ID。不能修改归属、排序或回收站。", { clipId: STRING, expectedRevision: DRAMA_REVISION, ...DRAMA_CLIP_PROPERTIES }, ["clipId", "expectedRevision"]),
+    defineTool("reorder_drama_clips", "按完整 Clip ID 顺序重排当前集制作中 Clip；服务端逐项校验当前版本。", { clipIds: STRING_ARRAY }, ["clipIds"]),
+    defineTool("archive_drama_clip", "按版本把当前集 Clip 移入回收站。", { clipId: STRING, expectedRevision: DRAMA_REVISION }, ["clipId", "expectedRevision"]),
+    defineTool("restore_drama_clip", "按版本从回收站恢复当前集 Clip。", { clipId: STRING, expectedRevision: DRAMA_REVISION }, ["clipId", "expectedRevision"]),
+    defineTool("create_drama_asset", "创建当前漫剧项目的共享资产定义，不生成媒体。", { title: STRING, kind: DRAMA_ASSET_KIND, parentId: STRING, description: STRING }, ["title", "kind"]),
+    defineTool("update_drama_asset", "按版本局部更新当前项目资产定义或采用版本。", { assetId: STRING, expectedRevision: DRAMA_REVISION, title: STRING, parentId: STRING, description: STRING, adoptedVersionId: STRING, defaultVoiceVersionId: STRING, archived: { type: "boolean" } }, ["assetId", "expectedRevision"]),
+    defineTool("generate_drama_asset_candidate", "为当前项目资产创建候选媒体节点；按 Agent 自动生成设置决定是否提交，节点会保留资产归属。", { assetId: STRING, kind: { type: "string", enum: ["image", "audio"] }, prompt: STRING, title: STRING, sourceNodeIds: STRING_ARRAY, voice: STRING, instructions: STRING }, ["assetId", "kind", "prompt", "sourceNodeIds"]),
+    defineTool("register_drama_asset_version", "把当前画布真实且已保存的媒体节点登记为资产版本；不能传 storageId 或路径。", { assetId: STRING, nodeId: STRING, note: STRING, expectedRevision: DRAMA_REVISION }, ["assetId", "nodeId", "expectedRevision"]),
+    defineTool("get_drama_binding", "读取当前 Clip 指定阶段的版本化资产绑定。", { clipId: STRING, stage: DRAMA_STAGE }, ["clipId", "stage"]),
+    defineTool("update_drama_binding", "按版本完整替换当前 Clip 指定阶段绑定，并同步共享参考节点与连线。首次创建绑定使用 expectedRevision=0。", { clipId: STRING, stage: DRAMA_STAGE, expectedRevision: DRAMA_INITIAL_REVISION, references: DRAMA_BINDING_REFERENCES }, ["clipId", "stage", "expectedRevision", "references"]),
+    defineTool("prepare_drama_clip_nodes", "幂等准备或安全修复指定 Clip 的分组、故事板、视频节点和标准连线，不移动已有内容。", { clipIds: STRING_ARRAY }, ["clipIds"]),
+    defineTool("repair_drama_clip_group_layout", "仅恢复明确 Clip 组的可见边界：不移动节点、不改提示词、参数、素材、绑定或连线；会将遗留参考节点移出分组成员关系。", { clipIds: STRING_ARRAY }, ["clipIds"]),
+    defineTool("update_drama_generation_node", "只更新当前 Clip 的故事板或视频节点源提示词与公开参数，并保存正式画布。源提示词使用图片N、视频N、音频N画布令牌，禁止写入仅供预览/提交快照使用的<Picture N>/<Video N>/<Audio N>提供方标签。", { clipId: STRING, nodeId: STRING, stage: DRAMA_STAGE, prompt: STRING, parameters: DRAMA_PARAMETERS }, ["clipId", "nodeId", "stage", "prompt"]),
+    defineTool("get_drama_runs", "读取当前集运行记录，可按 Clip 过滤。", { clipId: STRING }),
+    defineTool("preview_drama_run", "按当前节点、绑定和项目默认参数构建不可变输入快照并预估消耗。", { clipId: STRING, nodeId: STRING, requestId: STRING }, ["clipId", "nodeId"]),
+    defineTool("enqueue_drama_run", "按当前节点、绑定和项目默认参数构建输入；仅在 Agent 自动生成已启用时入队。", { clipId: STRING, nodeId: STRING, requestId: STRING }, ["clipId", "nodeId", "requestId"]),
+    defineTool("cancel_drama_run", "取消当前 Clip 的运行；退款规则由服务端按任务是否开始执行。", { clipId: STRING, runId: STRING }, ["clipId", "runId"]),
+    defineTool("recheck_drama_run", "重新核实当前 Clip 的未知或执行中运行状态，不重复提交。", { clipId: STRING, runId: STRING }, ["clipId", "runId"]),
+    defineTool("get_drama_adoptions", "读取当前集采用结果，可按 Clip 过滤。", { clipId: STRING }),
+    defineTool("adopt_drama_output", "从已完成运行的真实输出序号采用结果，不接受任意 storageId。", { clipId: STRING, runId: STRING, outputIndex: { type: "integer", minimum: 0 }, expectedRevision: { type: "integer", minimum: 0 }, clipRevision: DRAMA_REVISION }, ["clipId", "runId", "outputIndex", "expectedRevision", "clipRevision"]),
+    defineTool("export_drama_episode", "导出当前集按 Clip 顺序采用的视频与 manifest；partial=false 时缺片即拒绝。", { partial: { type: "boolean" } }),
     defineTool("get_canvas_summary", "读取当前画布摘要、节点、连线、模型配置和任务状态。"),
+    defineTool("get_media_content", "读取当前画布一个已完成媒体节点的真实内容。图片和音频直接返回；视频在大小允许时内联，否则返回已验证资源链接。", { nodeId: STRING }, ["nodeId"]),
     defineTool("get_selected_nodes", "读取用户当前选中的真实画布节点。"),
     defineTool("query_canvas_nodes", "当默认上下文中没有目标节点 ID 时，按 ID、关键词或类型只读查询画布节点；找到 ID 后再用 get_node 读取详情。", {
         nodeId: STRING,
@@ -193,6 +255,128 @@ export function normalizeCanvasAgentAction(name: unknown, args: unknown, id = na
     let normalized: Record<string, unknown> = {};
 
     switch (actionName) {
+        case "get_drama_project":
+        case "get_drama_episode":
+        case "get_drama_clips":
+        case "get_drama_assets":
+            break;
+        case "update_drama_project":
+        case "update_drama_episode":
+        case "create_drama_clip":
+        case "update_drama_clip": {
+            normalized = { ...input };
+            if (actionName !== "create_drama_clip") normalized.expectedRevision = boundedInteger(input.expectedRevision, 1, Number.MAX_SAFE_INTEGER);
+            if (actionName === "update_drama_clip") normalized.clipId = requiredString(input.clipId, "clipId");
+            for (const [key, value] of Object.entries(input)) {
+                if (key === "shots" || key === "expectedRevision" || key === "generationDefaults") continue;
+                if (typeof value !== "string") throw new Error(key + " 必须是字符串");
+            }
+            if (input.generationDefaults !== undefined) normalized.generationDefaults = normalizeDramaGenerationDefaults(input.generationDefaults);
+            if (input.title !== undefined && !(input.title as string).trim()) throw new Error("标题不能为空");
+            if (input.sourceType !== undefined && input.sourceType !== "novel" && input.sourceType !== "script") throw new Error("来源类型无效");
+            if (input.shots !== undefined) {
+                if (!Array.isArray(input.shots) || input.shots.length > 200) throw new Error("shots 必须是最多200项的数组");
+                const ids = new Set<string>();
+                for (const shot of input.shots) {
+                    if (!isRecord(shot) || Object.keys(shot).some((key) => !(key in DRAMA_SHOT_PROPERTIES))) throw new Error("镜头字段无效");
+                    for (const key of Object.keys(DRAMA_SHOT_PROPERTIES).filter((key) => key !== "duration")) if (typeof shot[key] !== "string") throw new Error("镜头缺少文本字段 " + key);
+                    if (typeof shot.duration !== "number" || !Number.isFinite(shot.duration) || shot.duration <= 0) throw new Error("镜头时长必须大于零");
+                    const id = requiredString(shot.id, "Shot ID");
+                    if (id !== shot.id || ids.has(id) || new TextEncoder().encode(id).length > 64) throw new Error("Shot ID 无效或重复");
+                    ids.add(id);
+                }
+            }
+            if (actionName !== "create_drama_clip" && !Object.keys(input).some((key) => key !== "clipId" && key !== "expectedRevision")) throw new Error("缺少待更新字段");
+            break;
+        }
+        case "reorder_drama_clips":
+            normalized = { clipIds: requiredUniqueStringArray(input.clipIds, "clipIds") };
+            break;
+        case "archive_drama_clip":
+        case "restore_drama_clip":
+            normalized = { clipId: requiredString(input.clipId, "clipId"), expectedRevision: boundedInteger(input.expectedRevision, 1, Number.MAX_SAFE_INTEGER) };
+            break;
+        case "create_drama_asset":
+            normalized = {
+                title: requiredString(input.title, "title"), kind: enumString(input.kind, "kind", ["character", "scene", "prop", "voice", "reference"]),
+                parentId: optionalString(input.parentId), description: typeof input.description === "string" ? input.description : "",
+            };
+            break;
+        case "update_drama_asset": {
+            normalized = { assetId: requiredString(input.assetId, "assetId"), expectedRevision: boundedInteger(input.expectedRevision, 1, Number.MAX_SAFE_INTEGER) };
+            for (const key of ["title", "parentId", "description", "adoptedVersionId", "defaultVoiceVersionId"] as const) if (input[key] !== undefined) {
+                if (typeof input[key] !== "string") throw new Error(key + " 必须是字符串");
+                normalized[key] = input[key];
+            }
+            if (input.archived !== undefined) {
+                if (typeof input.archived !== "boolean") throw new Error("archived 必须是布尔值");
+                normalized.archived = input.archived;
+            }
+            if (Object.keys(normalized).length === 2) throw new Error("缺少待更新字段");
+            break;
+        }
+        case "generate_drama_asset_candidate":
+            normalized = {
+                assetId: requiredString(input.assetId, "assetId"), kind: enumString(input.kind, "kind", ["image", "audio"]),
+                prompt: preservedRequiredString(input.prompt, "prompt"), sourceNodeIds: uniqueStringArray(input.sourceNodeIds, "sourceNodeIds"),
+                ...(optionalString(input.title) ? { title: optionalString(input.title) } : {}),
+                ...(optionalString(input.voice) ? { voice: optionalString(input.voice) } : {}),
+                ...(optionalString(input.instructions) ? { instructions: optionalString(input.instructions) } : {}),
+            };
+            break;
+        case "register_drama_asset_version":
+            normalized = { assetId: requiredString(input.assetId, "assetId"), nodeId: requiredString(input.nodeId, "nodeId"), note: typeof input.note === "string" ? input.note : "", expectedRevision: boundedInteger(input.expectedRevision, 1, Number.MAX_SAFE_INTEGER) };
+            break;
+        case "get_drama_binding":
+            normalized = { clipId: requiredString(input.clipId, "clipId"), stage: enumString(input.stage, "stage", ["storyboard", "video"]) };
+            break;
+        case "update_drama_binding": {
+            if (!Array.isArray(input.references) || input.references.length > 50) throw new Error("references 必须是最多50项的数组");
+            const seenOrders = new Set<number>();
+            const references = input.references.map((item) => {
+                if (!isRecord(item) || Object.keys(item).some((key) => !["assetId", "versionId", "role", "order", "speaker"].includes(key))) throw new Error("绑定字段无效");
+                const order = boundedInteger(item.order, 0, Number.MAX_SAFE_INTEGER);
+                if (order === undefined || seenOrders.has(order)) throw new Error("绑定顺序无效或重复");
+                seenOrders.add(order);
+                return { assetId: requiredString(item.assetId, "assetId"), versionId: requiredString(item.versionId, "versionId"), role: requiredString(item.role, "role"), order, speaker: typeof item.speaker === "string" ? item.speaker : "" };
+            }).sort((a, b) => a.order - b.order);
+            normalized = { clipId: requiredString(input.clipId, "clipId"), stage: enumString(input.stage, "stage", ["storyboard", "video"]), expectedRevision: boundedInteger(input.expectedRevision, 0, Number.MAX_SAFE_INTEGER), references };
+            break;
+        }
+        case "prepare_drama_clip_nodes":
+        case "repair_drama_clip_group_layout":
+            normalized = { clipIds: requiredUniqueStringArray(input.clipIds, "clipIds") };
+            break;
+        case "update_drama_generation_node":
+            normalized = {
+                clipId: requiredString(input.clipId, "clipId"),
+                nodeId: requiredString(input.nodeId, "nodeId"),
+                stage: enumString(input.stage, "stage", ["storyboard", "video"]),
+                prompt: preservedRequiredString(input.prompt, "prompt"),
+                ...(input.parameters === undefined ? {} : { parameters: normalizeDramaParameters(input.parameters) }),
+            };
+            break;
+        case "get_drama_runs":
+        case "get_drama_adoptions":
+            normalized = optionalString(input.clipId) ? { clipId: optionalString(input.clipId) } : {};
+            break;
+        case "preview_drama_run":
+            normalized = { clipId: requiredString(input.clipId, "clipId"), nodeId: requiredString(input.nodeId, "nodeId"), ...(optionalString(input.requestId) ? { requestId: optionalString(input.requestId) } : {}) };
+            break;
+        case "enqueue_drama_run":
+            normalized = { clipId: requiredString(input.clipId, "clipId"), nodeId: requiredString(input.nodeId, "nodeId"), requestId: requiredString(input.requestId, "requestId") };
+            break;
+        case "cancel_drama_run":
+        case "recheck_drama_run":
+            normalized = { clipId: requiredString(input.clipId, "clipId"), runId: requiredString(input.runId, "runId") };
+            break;
+        case "adopt_drama_output":
+            normalized = { clipId: requiredString(input.clipId, "clipId"), runId: requiredString(input.runId, "runId"), outputIndex: boundedInteger(input.outputIndex, 0, Number.MAX_SAFE_INTEGER), expectedRevision: boundedInteger(input.expectedRevision, 0, Number.MAX_SAFE_INTEGER), clipRevision: boundedInteger(input.clipRevision, 1, Number.MAX_SAFE_INTEGER) };
+            break;
+        case "export_drama_episode":
+            if (input.partial !== undefined && typeof input.partial !== "boolean") throw new Error("partial 必须是布尔值");
+            normalized = { partial: input.partial === true };
+            break;
         case "get_canvas_summary":
         case "get_selected_nodes":
         case "get_generation_config":
@@ -210,6 +394,7 @@ export function normalizeCanvasAgentAction(name: unknown, args: unknown, id = na
             break;
         }
         case "get_node":
+        case "get_media_content":
         case "get_upstream_nodes":
         case "get_downstream_nodes":
         case "get_connected_nodes":
@@ -379,10 +564,18 @@ function canvasAgentToolDefinition(name: string) {
 
 export function canvasAgentActionLabel(action: CanvasAgentAction) {
     const labels: Record<CanvasAgentActionName, string> = {
+        get_drama_project: "正在读取漫剧项目", get_drama_episode: "正在读取当前集", get_drama_clips: "正在读取 Clip", get_drama_assets: "正在读取共享资产",
+        update_drama_project: "正在更新漫剧项目", update_drama_episode: "正在更新当前剧本", create_drama_clip: "正在创建 Clip", update_drama_clip: "正在更新 Clip",
+        reorder_drama_clips: "正在重排 Clip", archive_drama_clip: "正在归档 Clip", restore_drama_clip: "正在恢复 Clip",
+        create_drama_asset: "正在创建漫剧资产", update_drama_asset: "正在更新漫剧资产", generate_drama_asset_candidate: "正在创建资产候选", register_drama_asset_version: "正在登记资产版本",
+        get_drama_binding: "正在读取资产绑定", update_drama_binding: "正在更新资产绑定", prepare_drama_clip_nodes: "正在准备 Clip 节点", repair_drama_clip_group_layout: "正在恢复 Clip 分组布局", update_drama_generation_node: "正在更新生成节点",
+        get_drama_runs: "正在读取漫剧运行", preview_drama_run: "正在预览漫剧运行", enqueue_drama_run: "正在提交漫剧运行", cancel_drama_run: "正在取消漫剧运行", recheck_drama_run: "正在核实漫剧运行",
+        get_drama_adoptions: "正在读取采用结果", adopt_drama_output: "正在采用漫剧输出", export_drama_episode: "正在导出当前集",
         get_canvas_summary: "正在读取画布",
         get_selected_nodes: "正在读取选中节点",
         query_canvas_nodes: "正在查找画布节点",
         get_node: "正在读取节点",
+        get_media_content: "正在读取媒体内容",
         get_upstream_nodes: "正在读取上游节点",
         get_downstream_nodes: "正在读取下游节点",
         get_connected_nodes: "正在读取关联节点",
@@ -409,7 +602,7 @@ export function canvasAgentActionLabel(action: CanvasAgentAction) {
 }
 
 export function isCanvasAgentMediaAction(action: CanvasAgentAction) {
-    return action.name === "generate_image" || action.name === "edit_image" || action.name === "generate_video" || action.name === "generate_audio";
+    return action.name === "generate_image" || action.name === "edit_image" || action.name === "generate_video" || action.name === "generate_audio" || action.name === "generate_drama_asset_candidate" || action.name === "enqueue_drama_run";
 }
 
 export function userLikelyRequestedCanvasAction(text: string) {
@@ -468,6 +661,58 @@ function requiredString(value: unknown, key: string) {
     const text = value.trim();
     if (!text) throw new Error(key + " 不能为空");
     return text;
+}
+
+function preservedRequiredString(value: unknown, key: string) {
+    if (typeof value !== "string" || !value.trim()) throw new Error(key + " 不能为空");
+    return value;
+}
+
+function enumString(value: unknown, key: string, allowed: readonly string[]) {
+    const text = requiredString(value, key);
+    if (!allowed.includes(text)) throw new Error(key + " 无效");
+    return text;
+}
+
+function requiredUniqueStringArray(value: unknown, key: string) {
+    if (!Array.isArray(value) || !value.length) throw new Error(key + " 必须是非空字符串数组");
+    const items = stringArray(value, key);
+    if (items.length !== value.length) throw new Error(key + " 不能包含重复项");
+    return items;
+}
+
+function uniqueStringArray(value: unknown, key: string) {
+    if (!Array.isArray(value)) throw new Error(key + " 必须是字符串数组");
+    const items = stringArray(value, key);
+    if (items.length !== value.length) throw new Error(key + " 不能包含重复项");
+    return items;
+}
+
+function normalizeDramaParameters(value: unknown) {
+    if (value === undefined) return {};
+    if (!isRecord(value)) throw new Error("parameters 必须是对象");
+    const result: Record<string, string | number> = {};
+    const allowed = new Set(["steps", "seed", "seconds", "size", "resolution_name"]);
+    for (const [key, item] of Object.entries(value)) {
+        if (!allowed.has(key)) throw new Error("不支持的公开参数：" + key);
+        if (key === "steps") result[key] = boundedInteger(item, 1, 1000) as number;
+        else if (key === "seed") result[key] = boundedInteger(item, 0, Number.MAX_SAFE_INTEGER) as number;
+        else if (key === "seconds") result[key] = boundedNumber(item, Number.MIN_VALUE, Number.MAX_SAFE_INTEGER) as number;
+        else {
+            if (typeof item !== "string" || item.length > 100) throw new Error(key + " 必须是最多100字符的字符串");
+            if (key === "resolution_name" && !["480p", "720p", "1080p"].includes(item)) throw new Error("resolution_name 无效");
+            result[key] = item;
+        }
+    }
+    return result;
+}
+
+function normalizeDramaGenerationDefaults(value: unknown) {
+    if (!isRecord(value) || Object.keys(value).some((key) => key !== "image" && key !== "video")) throw new Error("generationDefaults 只支持 image 和 video");
+    const result: Partial<Record<"image" | "video", Record<string, string | number | boolean>>> = {};
+    if (value.image !== undefined) result.image = normalizeDramaParameters(value.image);
+    if (value.video !== undefined) result.video = normalizeDramaParameters(value.video);
+    return result;
 }
 
 function optionalString(value: unknown) {
