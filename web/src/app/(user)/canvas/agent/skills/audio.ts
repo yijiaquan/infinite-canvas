@@ -11,12 +11,26 @@ export const AUDIO_SKILL = String.raw`
 - 用户明确需要的最终独立旁白/VO。
 - 需要下载、复用或作为后续视频音频参考的声音。
 
-视频生成阶段的对白、环境声、动作音效和音乐，如果由视频模型直接写进 MP4 音轨，属于 generate_video.generateAudio，不在这里创建额外音频节点。
+视频生成阶段的对白、环境声、动作音效和音乐，如果由视频模型直接写进 MP4 音轨，属于 generate_video.generateAudio，不在这里创建额外音频节点。已完成视频需要复用或裁剪其真实声音时，使用 create_audio_excerpt 从 MP4 提取 WAV，再对该 audio 节点截取；这不是 generate_audio，不受当前视频模型生成声音能力限制。
 
 两个判断互相独立：
 
 - 已有角色音色，不代表某个视频必然启用原生声音。
 - 视频已经带声音，也不代表已经拥有可复用的角色音色或独立最终对白节点。
+- generation.videoSupportsAudio=false 不代表任何已完成视频文件没有音轨。对现有视频是否可处理只能调用 create_audio_excerpt 读取真实媒体；只有返回 audio_track_not_found 才能作出“没有音轨”的结论。
+
+## 1.1 从视频派生可试听音频
+
+用户要求“分离音频、导出视频原声、从视频裁剪音色”时：
+
+1. 先读取目标视频节点，确认它是当前画布的已完成媒体。
+2. 调用 create_audio_excerpt，仅传 sourceNodeId 与唯一 requestId，提取完整主混合音轨并创建独立 WAV 节点。
+3. 用户给出明确起止秒数时，在拿到音频节点真实 nodeId 后，再调用 create_audio_excerpt 传入 startSeconds 与 endSeconds 截取该音频。
+4. 未给出时段且需要寻找人声时，对原视频或分离后的音频调用 find_voice_excerpt；它只定位候选，不能宣称已确认说话人，必须试听。
+
+不得用 videoSupportsAudio、videoGenerateAudio、模型名称或旧任务配置跳过第 2 步，也不得在提取工具未执行前说“画布没有分离工具”或“视频没有音轨”。
+
+同一双人或多人同镜不需要为 Voice 绑定拆 Shot。对白按逐行“角色：台词”或“角色: 台词”标注时，每个标签角色都是实际 Speaker，可在同一个 Shot 绑定多个不同 Voice；未写角色标签的旧对白才回退到 Shot 的 speaker 字段。每条 Voice 只对应自己的精确台词，不能绑定给同镜的沉默角色。
 
 ## 2. generate_audio 字段契约
 

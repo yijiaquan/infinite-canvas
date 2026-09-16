@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 import express from "express";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { randomBytes, randomUUID } from "node:crypto";
+import { spawn } from "node:child_process";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
@@ -27,7 +29,9 @@ const endpoint = "http://127.0.0.1:" + port;
 const workspace = dirname(entry);
 const origins = new Set(process.env.CANVAS_AGENT_ORIGINS?.split(",").map((value) => value.trim()).filter(Boolean) || savedConfig?.origins || []);
 const sessions = new Map();
+let writerTransition = Promise.resolve();
 const SESSION_DISCONNECT_GRACE_MS = 60_000;
+const VOICE_ANALYSIS_MAX_BYTES = 200 * 1024 * 1024;
 const sessionRegistry = new SessionRegistry(sessions, {
     onSwitch(previous, next) {
         for (const pending of previous.toolsPending.values()) {
@@ -41,7 +45,7 @@ const sessionRegistry = new SessionRegistry(sessions, {
         previous.codex = undefined;
     },
 });
-const methods = new Set(["model/list", "thread/start", "thread/resume", "thread/archive", "turn/start", "turn/interrupt", "bridge/stop"]);
+const methods = new Set(["model/list", "thread/start", "thread/resume", "thread/fork", "thread/archive", "turn/start", "turn/interrupt", "bridge/stop"]);
 
 async function openCanvas() {
     const target = URL.canParse(process.argv[3] || "") ? new URL(process.argv[3]) : null;
@@ -126,16 +130,35 @@ async function runRpc(session, method, params = {}, generation) {
         await session.writerRelease;
         session.writerRelease = undefined;
     }
-    if (!session.codex || session.codex.stopped) session.codex = new CodexClient((event, data) => {
-        if (data.method === "bridge/disconnected") {
-            if (generation === session.codexGeneration) session.codexGeneration += 1;
-            for (const pending of session.toolsPending.values()) if (pending.source === "codex") pending.cancel("Codex 请求已停止");
-        }
-        emit(session, event, { ...data, generation });
-    });
+    if (!session.codex || session.codex.stopped) {
+        const transition = writerTransition.catch(() => undefined).then(async () => {
+            if (session.codex && !session.codex.stopped) return;
+            const releases = [];
+            for (const other of sessions.values()) {
+                if (other === session || !other.codex) continue;
+                other.codexGeneration += 1;
+                releases.push(other.codex.close(new Error("Codex writer 已切换到当前画布")));
+                other.codex = undefined;
+            }
+            await Promise.all(releases);
+            session.attachedThreads = new Set();
+            session.codex = new CodexClient((event, data) => {
+                if (data.method === "bridge/disconnected") {
+                    if (generation === session.codexGeneration) session.codexGeneration += 1;
+                    for (const pending of session.toolsPending.values()) if (pending.source === "codex") pending.cancel("Codex 请求已停止");
+                }
+                emit(session, event, { ...data, generation });
+            });
+        });
+        writerTransition = transition;
+        await transition;
+    }
     const codex = session.codex;
     await codex.ready;
-    if (method === "thread/start" || method === "thread/resume") {
+    if (method === "thread/resume" && typeof params.threadId === "string" && session.attachedThreads?.has(params.threadId)) {
+        return { thread: { id: params.threadId } };
+    }
+    if (method === "thread/start" || method === "thread/resume" || method === "thread/fork") {
         params = {
             ...params,
             cwd: workspace,
@@ -154,13 +177,98 @@ async function runRpc(session, method, params = {}, generation) {
     if (method === "turn/start") {
         params = { ...params, approvalPolicy: "on-request", sandboxPolicy: { type: "workspaceWrite", networkAccess: false } };
     }
-    return codex.request(method, params);
+    const result = await codex.request(method, params);
+    if ((method === "thread/start" || method === "thread/resume" || method === "thread/fork") && typeof result?.thread?.id === "string") {
+        session.attachedThreads ??= new Set();
+        session.attachedThreads.add(result.thread.id);
+    }
+    return result;
+}
+
+function mediaExtension(mimeType) {
+    const normalized = String(mimeType || "").toLowerCase().split(";", 1)[0];
+    if (normalized === "audio/wav" || normalized === "audio/x-wav") return ".wav";
+    if (normalized === "audio/mpeg") return ".mp3";
+    if (normalized === "audio/ogg") return ".ogg";
+    if (normalized === "audio/webm" || normalized === "video/webm") return ".webm";
+    if (normalized === "video/quicktime") return ".mov";
+    return ".mp4";
+}
+
+async function analyzeVoiceExcerpt(media, mimeType, targetSeconds) {
+    if (!Buffer.isBuffer(media) || !media.length) return { ok: false, code: "media_read_failed", message: "没有收到待分析媒体" };
+    if (media.length > VOICE_ANALYSIS_MAX_BYTES) return { ok: false, code: "media_too_large", message: "待分析媒体超过 200 MB 限制" };
+    if (!Number.isFinite(targetSeconds) || targetSeconds < 0.5 || targetSeconds > 12) return { ok: false, code: "invalid_target_duration", message: "目标音色片段时长必须在 0.5 到 12 秒之间" };
+
+    const directory = await mkdtemp(resolve(tmpdir(), "canvas-agent-voice-"));
+    const sourcePath = resolve(directory, "source" + mediaExtension(mimeType));
+    const workerPath = resolve(workspace, "voice-analysis.py");
+    const python = process.env.CANVAS_AGENT_PYTHON || (process.platform === "win32" ? "py" : "python3");
+    const pythonArgs = process.platform === "win32" && !process.env.CANVAS_AGENT_PYTHON
+        ? ["-3", workerPath, sourcePath, String(targetSeconds)]
+        : [workerPath, sourcePath, String(targetSeconds)];
+    try {
+        await writeFile(sourcePath, media, { flag: "wx" });
+        const output = await new Promise((resolveOutput, rejectOutput) => {
+            const child = spawn(python, pythonArgs, {
+                windowsHide: true,
+                env: { ...process.env, PYTHONUTF8: "1" },
+                stdio: ["ignore", "pipe", "pipe"],
+            });
+            let stdout = "";
+            let stderr = "";
+            const timer = setTimeout(() => child.kill(), 90_000);
+            child.stdout.on("data", (chunk) => { stdout += chunk; });
+            child.stderr.on("data", (chunk) => { stderr += chunk; });
+            child.on("error", (error) => { clearTimeout(timer); rejectOutput(error); });
+            child.on("close", (code, signal) => {
+                clearTimeout(timer);
+                if (signal) return rejectOutput(new Error("语音分析超时"));
+                try {
+                    const result = JSON.parse(stdout.trim());
+                    resolveOutput(result);
+                } catch {
+                    rejectOutput(new Error((stderr || "语音分析进程没有返回有效结果").trim()));
+                }
+            });
+        });
+        return output;
+    } catch (error) {
+        return { ok: false, code: "speech_analysis_unavailable", message: "本地语音分析不可用：" + (error instanceof Error ? error.message : "未知错误") };
+    } finally {
+        await rm(directory, { recursive: true, force: true }).catch(() => undefined);
+    }
 }
 
 async function startMcp() {
     const clientId = process.env.CANVAS_AGENT_CLIENT_ID || "";
     const source = process.env.CANVAS_AGENT_SOURCE === "codex" ? "codex" : "external";
     const generation = Number(process.env.CANVAS_AGENT_CODEX_GENERATION || 0);
+    async function ensureHttpAgent() {
+        const config = readConfig();
+        if (!config?.token && !process.env.CANVAS_AGENT_TOKEN) throw new Error("请先启动一次本地 Canvas Agent 服务");
+        const url = "http://127.0.0.1:" + (process.env.CANVAS_AGENT_PORT || config?.port || 3210);
+        const healthy = async () => {
+            try {
+                const response = await fetch(url + "/config", { signal: AbortSignal.timeout(1000) });
+                return response.ok;
+            } catch { return false; }
+        };
+        if (await healthy()) return;
+        const child = spawn(process.execPath, [entry], {
+            detached: true,
+            stdio: "ignore",
+            windowsHide: true,
+            env: { ...process.env, CANVAS_AGENT_TOKEN: process.env.CANVAS_AGENT_TOKEN || config.token, CANVAS_AGENT_PORT: String(process.env.CANVAS_AGENT_PORT || config.port || 3210) },
+        });
+        child.unref();
+        for (let attempt = 0; attempt < 20; attempt += 1) {
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            if (await healthy()) return;
+        }
+        throw new Error("本地 Canvas Agent 自动启动失败");
+    }
+    await ensureHttpAgent();
     async function request(path, body, signal) {
         const config = readConfig();
         const requestToken = process.env.CANVAS_AGENT_TOKEN || config?.token;
@@ -230,6 +338,10 @@ function startHttp() {
             saveConfig();
         }
         next();
+    });
+    app.post("/voice-analysis", express.raw({ type: "application/octet-stream", limit: "200mb" }), async (req, res) => {
+        const targetSeconds = Number(req.headers["x-canvas-voice-target-seconds"]);
+        res.json(await analyzeVoiceExcerpt(req.body, req.headers["x-canvas-media-mime"], targetSeconds));
     });
     app.use(express.json({ limit: "20mb" }));
     app.post("/connect", (req, res) => {

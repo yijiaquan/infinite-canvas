@@ -101,11 +101,7 @@ func ValidateDramaRunReferences(ctx context.Context, p, e, c string, refs []mode
 	speakers := map[string]bool{}
 	for _, clip := range clips {
 		if clip.ID == c {
-			for _, shot := range clip.Shots {
-				if strings.TrimSpace(shot.Dialogue) != "" && strings.TrimSpace(shot.Speaker) != "" {
-					speakers[shot.Speaker] = true
-				}
-			}
+			speakers = model.DramaClipDialogueSpeakers(clip.Shots)
 		}
 	}
 	for i, r := range refs {

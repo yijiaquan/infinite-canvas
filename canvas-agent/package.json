@@ -1,11 +1,11 @@
 {
     "name": "@tigerowo/canvas-agent",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "type": "module",
     "bin": {
         "canvas-agent": "index.mjs"
     },
-    "files": ["index.mjs", "codex.mjs", "media-result.mjs", "session-registry.mjs"],
+    "files": ["index.mjs", "codex.mjs", "media-result.mjs", "session-registry.mjs", "voice-analysis.py"],
     "publishConfig": {
         "access": "public"
     },

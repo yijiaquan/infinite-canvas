@@ -273,4 +273,3 @@ func migrateUserImageGenerationLogs(userID string) error {
 	_, err = repository.SaveUserConfig(config)
 	return err
 }
-

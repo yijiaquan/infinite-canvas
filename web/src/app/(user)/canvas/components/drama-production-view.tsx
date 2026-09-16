@@ -9,6 +9,7 @@ import { useEffectiveConfig } from "@/stores/use-config-store";
 import { ModelPicker } from "@/components/model-picker";
 import { DramaRunPanel } from "./drama-run-panel";
 import { DramaBindingEditor } from "./drama-binding-editor";
+import { dramaClipDialogueSpeakers } from "../utils/drama-dialogue-speakers";
 import type { DramaRunReference } from "@/services/api/drama-runs";
 import { DramaParameters } from "./drama-parameters";
 import { DramaPromptEditor } from "./drama-text-area";
@@ -199,7 +200,7 @@ export function DramaProductionView({
                             episodeId={episodeId}
                             clipId={clip.id}
                             stage={stage}
-                            speakers={clip.shots.filter((s) => s.dialogue.trim() && s.speaker.trim()).map((s) => s.speaker)}
+                            speakers={dramaClipDialogueSpeakers(clip.shots)}
                             onChange={setReferences}
                             onDirtyChange={setBindingDirty}
                         />

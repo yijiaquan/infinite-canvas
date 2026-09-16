@@ -22,6 +22,14 @@ description: Create and manage recurring voices, provider-native dialogue, TTS o
 
 对有可见对白的重复角色，在首个关键场次的完整分镜导演板通过视觉 QA 后、视频提示词定稿前，优先在 LibTV 创建角色音色并下载干净代表样本。当前 Skill 只绑定主人提供的本地 LibTV 文件，不假定或调用 LibTV API；未来接入经过验证的节点或 API 后再补执行方式。
 
+当主人明确要求从画布中已完成的视频原声取得人物音色样本时，优先先调用 `create_audio_excerpt`，只传视频节点和 `requestId`，把真实视频主混合音轨分离为完整 WAV 候选节点；再对这个音频节点进行试听或裁剪。不得根据 `videoSupportsAudio`、`videoGenerateAudio` 或其他生成配置推断成品有没有声音。真实媒体没有音轨时才会由工具返回 `audio_track_not_found`；在该真实工具结果之前，不得声称视频无音轨或画布没有分离工具。
+
+主人已知起止时间时，第二步对刚创建的 audio 节点调用 `create_audio_excerpt(startSeconds, endSeconds)` 精确裁剪。主人不知道人声位置时，第二步改为对视频或完整音频调用 `find_voice_excerpt`；它以本地 ASR 与 VAD 时间戳定位一段连续人声并创建可试听 WAV 候选。存在音轨但找不到满足最短时长的连续人声时返回 `speech_not_found`，两种失败都不得创建空节点或改用 `generate_audio`。
+
+`find_voice_excerpt` 默认寻找约 4 秒候选，只做语音区间定位，不做人声/BGM/音效源分离，也不做说话人识别。填写角色名仅作候选标注，不能声明已确认该人物说话；必须实际试听，确认片段为目标人物单独说话、无明显音乐、环境噪声、其他说话者串音或失真，才可直接用 `register_drama_asset_version(assetId, nodeId, expectedRevision)` 把当前画布 WAV 登记到既有 Voice 资产。手动上传、视频分离和裁剪出的真实 WAV 同样适用，无需 `dramaAssetId` 或重新生成候选；随后设置 `defaultVoiceVersionId`，并以 `role=voice` 和实际 `speaker` 绑定后续对白镜头。
+
+`create_audio_excerpt` 保留给主人已知时间段时的主混合音轨提取与精确裁剪。两种工具都只创建普通候选音频节点，不自动登记、采用或绑定 Voice，也不构成声音克隆。混合音轨中的背景声和其他声音会保留；没有合格的单人干净区间时，不得把截取结果描述为纯净人声或直接采用为角色 Voice。
+
 主人只需在这一处确认每个角色采用哪条 LibTV 样本。确认后登记为 current Voice 并继续视频制作；未确认的角色只暂停其需要该 Voice 的对白 Shot，非对白工作无需等待。
 
 1. 为每个重复角色建立稳定 Voice ID。
@@ -39,6 +47,8 @@ description: Create and manage recurring voices, provider-native dialogue, TTS o
 ## Dialogue Routes
 
 生产先按 [Infinite Canvas 生产契约](../ai-drama-studio-workflow/references/infinite-canvas-production-contract.md) 调用 `get_canvas_summary` 并读取当前 Clip/Shot、Voice 采用版本和输入绑定。Voice 通过 assetId/versionId 绑定且显式填写实际 speaker；一个音频引用只对应本 Clip 的实际 Speaker，无台词或沉默角色不进入 Audio 槽位，不扫描或回写旧工作台。
+
+同一 Shot 的 `speaker` 字段只描述镜头层面的出声状态，不能把双人同镜误判为只有一个 Voice。对白存在逐行 `角色：台词` 或 `角色: 台词` 段落时，以这些角色标签为权威：同一 Shot 可以绑定多个实际 Voice，并让每个 Voice 只对应自己的精确 Line；只有没有角色标签的旧数据才回退到非空 `speaker` 字段。不要为了绑定 Voice 拆分合理的双人或多人同镜。
 
 每个有声音角色的 Shot 先按精确 Line 选出实际 Speaker，再只为这些 Speaker 选择一个路线。画面中的角色不会仅因出镜而获得 Voice 输入；`无台词` Shot 不传角色 Voice 样本，仍可保留环境、Foley、SFX 和按需音乐。
 

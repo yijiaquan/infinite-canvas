@@ -35,7 +35,7 @@ func TestDramaBindingLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	shots := []model.DramaShot{{ID: "shot", Duration: 3, Speaker: "Alice", Dialogue: "Hello"}}
+	shots := []model.DramaShot{{ID: "shot", Duration: 3, Speaker: "双人同镜", Dialogue: "Alice：Hello\nBob：Reply"}}
 	clip, err := CreateCurrentUserDramaClip(owner, project.ID, episode.ID, DramaClipInput{Title: &title, Shots: &shots})
 	if err != nil {
 		t.Fatal(err)
@@ -48,7 +48,7 @@ func TestDramaBindingLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, item := range []struct{ id, mime, user, project string }{
-		{"image", "image/png", "owner", project.ID}, {"audio", "audio/wav", "owner", project.ID}, {"video", "video/mp4", "owner", project.ID},
+		{"image", "image/png", "owner", project.ID}, {"audio", "audio/wav", "owner", project.ID}, {"audio-bob", "audio/wav", "owner", project.ID}, {"video", "video/mp4", "owner", project.ID},
 		{"foreign", "image/png", "other", project.ID}, {"elsewhere", "image/png", "owner", "another-project"},
 	} {
 		asset := model.DramaAsset{ID: item.id, UserID: item.user, ProjectID: item.project, Kind: "reference", Revision: 1, AdoptedVersionID: item.id + "-new"}
@@ -68,6 +68,7 @@ func TestDramaBindingLifecycle(t *testing.T) {
 	}
 	image := model.DramaBindingReference{AssetID: "image", VersionID: "image-version", Role: "character", Order: 0}
 	voice := model.DramaBindingReference{AssetID: "audio", VersionID: "audio-version", Role: "voice", Speaker: "Alice", Order: 1}
+	secondVoice := model.DramaBindingReference{AssetID: "audio-bob", VersionID: "audio-bob-version", Role: "voice", Speaker: "Bob", Order: 2}
 	empty, err := read(owner, "video")
 	if err != nil || empty.Revision != 0 || empty.References == nil || len(empty.References) != 0 {
 		t.Fatalf("empty: %+v %v", empty, err)
@@ -93,7 +94,7 @@ func TestDramaBindingLifecycle(t *testing.T) {
 		{AssetID: "image", VersionID: "audio-version", Role: "reference"},
 		{AssetID: "audio", VersionID: "audio-version", Role: "reference"},
 		{AssetID: "image", VersionID: "image-version", Role: "voice", Speaker: "Alice"},
-		{AssetID: "audio", VersionID: "audio-version", Role: "voice", Speaker: "Bob"},
+		{AssetID: "audio", VersionID: "audio-version", Role: "voice", Speaker: "Carol"},
 		{AssetID: "audio", VersionID: "audio-version", Role: "voice"},
 		{AssetID: "image", VersionID: "image-version", Role: "invalid"},
 		{AssetID: "image", VersionID: "image-version", Role: "reference", Order: 2},
@@ -101,6 +102,11 @@ func TestDramaBindingLifecycle(t *testing.T) {
 		if _, err := save("video", 0, ref); err == nil {
 			t.Fatalf("invalid reference accepted: %+v", ref)
 		}
+	}
+	if _, err := save("video", 0, model.DramaBindingReference{AssetID: "audio", VersionID: "audio-version", Role: "voice", Speaker: "Carol", Order: 0}); err == nil {
+		t.Fatal("unknown speaker accepted")
+	} else if safe, ok := err.(interface{ SafeMessage() string }); !ok || safe.SafeMessage() != "声音必须绑定本 Clip 实际说话者" {
+		t.Fatalf("unknown speaker error was not readable: %v", err)
 	}
 	duplicate := image
 	duplicate.Order = 1
@@ -119,9 +125,16 @@ func TestDramaBindingLifecycle(t *testing.T) {
 	if _, err := save("video", 1, image); err == nil {
 		t.Fatal("nonzero initial revision accepted")
 	}
-	bound, err := save("video", 0, image, voice)
-	if err != nil || bound.Revision != 1 || len(bound.References) != 2 || bound.References[0].VersionID != image.VersionID {
+	bound, err := save("video", 0, image, voice, secondVoice)
+	if err != nil || bound.Revision != 1 || len(bound.References) != 3 || bound.References[0].VersionID != image.VersionID {
 		t.Fatalf("bind: %+v %v", bound, err)
+	}
+	if err := ValidateDramaRunReferences(owner, project.ID, episode.ID, clip.ID, []model.DramaRunReference{
+		{AssetID: "image", VersionID: "image-version", StorageID: "image-storage", Role: "character", Order: 0},
+		{AssetID: "audio", VersionID: "audio-version", StorageID: "audio-storage", Role: "voice", Speaker: "Alice", Order: 1},
+		{AssetID: "audio-bob", VersionID: "audio-bob-version", StorageID: "audio-bob-storage", Role: "voice", Speaker: "Bob", Order: 2},
+	}); err != nil {
+		t.Fatalf("multi-speaker run validation: %v", err)
 	}
 	if _, err := save("video", 0, image); err == nil {
 		t.Fatal("stale insert accepted")
@@ -129,7 +142,7 @@ func TestDramaBindingLifecycle(t *testing.T) {
 	if err := db.Model(&model.DramaAsset{}).Where("id = ?", "image").Update("archived", true).Error; err != nil {
 		t.Fatal(err)
 	}
-	kept, err := save("video", 1, image, voice)
+	kept, err := save("video", 1, image, voice, secondVoice)
 	if err != nil || kept.ID != bound.ID || kept.Revision != 2 {
 		t.Fatalf("archived existing reference lost: %+v %v", kept, err)
 	}
@@ -140,7 +153,7 @@ func TestDramaBindingLifecycle(t *testing.T) {
 		t.Fatal("stale update accepted")
 	}
 	current, err := read(owner, "video")
-	if err != nil || current.Revision != 2 || len(current.References) != 2 {
+	if err != nil || current.Revision != 2 || len(current.References) != 3 {
 		t.Fatal("failed save mutated binding")
 	}
 	cleared, err := save("video", 2)

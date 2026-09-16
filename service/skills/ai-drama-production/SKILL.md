@@ -2,7 +2,7 @@
 name: AI 漫剧完整制作
 description: 在正式漫剧分集画布中，从立项、剧本、Clip 拆解、资产、导演故事板到视频生成和必剪交接的唯一总入口。
 id: ai-drama-production
-version: 5
+version: 9
 ---
 
 # AI 漫剧完整制作
@@ -17,7 +17,7 @@ version: 5
 4. 编辑状态只保存结构化引用，不写旧式文本引用或手写供应商标签；只由提交编译层按真实输入顺序生成供应商标签。
 5. 绑定的资产版本是权威记录，节点与连线是可视投影。同一版本在同一 Clip 共享一个参考节点。
 6. 提交后草稿修改不改变已入队快照；只有未开始任务取消可退费。不确定的任务先检查运行和队列，不重复提交。
-7. Voice 样本是普通音频资产，仅绑定真实 Speaker。视频后的对白修补、环境音、拟音、BGM、混音和字幕校准交给必剪。
+7. Voice 样本是普通音频资产，仅绑定真实 Speaker。处理已完成视频的声音时，先调用 create_audio_excerpt 从真实媒体分离完整 WAV，再从该 audio 节点裁剪或调用 find_voice_excerpt 定位候选；不得用 videoSupportsAudio/videoGenerateAudio 推断成品是否有音轨。试听确认后的当前画布 WAV 可直接用 register_drama_asset_version 登记到既有 voice 资产（无需由该资产生成），再设置 defaultVoiceVersionId 并按实际 speaker 绑定。双人或多人同镜按逐行“角色：台词”标签识别全部实际 Speaker，可在一个 Shot 中绑定多个 Voice；不能为此拆 Shot。不得重新生成音频替代该 WAV。视频后的对白修补、环境音、拟音、BGM、混音和字幕校准交给必剪。
 
 ## 按阶段读取
 

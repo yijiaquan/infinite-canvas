@@ -42,6 +42,7 @@ export function useCodexAgent(options: {
     const [enabled, setEnabled] = useState(true);
     const connectionAttempt = useRef(0);
     const client = useRef<Client | null>(null);
+    const attachedThreads = useRef<{ client: Client; ids: Set<string> } | null>(null);
     const active = useRef<ActiveRun | null>(null);
     const dispatch = useRef<((event: CodexRpcEvent) => void) | null>(null);
     const latest = useRef(options);
@@ -51,6 +52,7 @@ export function useCodexAgent(options: {
         active.current?.finish(stopped());
         client.current?.close();
         client.current = null;
+        attachedThreads.current = null;
         dispatch.current = null;
         setEnabled(false);
         setStatus("idle");
@@ -236,10 +238,11 @@ export function useCodexAgent(options: {
             },
         });
         client.current = link;
+        attachedThreads.current = { client: link, ids: new Set() };
         return () => {
             active.current?.finish(stopped());
             approvals.forEach((controller) => controller.abort());
-            if (client.current === link) { client.current = null; dispatch.current = null; }
+            if (client.current === link) { client.current = null; attachedThreads.current = null; dispatch.current = null; }
             link.close();
         };
     }, [options.canvasId, connection.endpoint, connection.token, retry, enabled]);
@@ -255,7 +258,17 @@ export function useCodexAgent(options: {
         input.signal?.throwIfAborted();
         return new Promise((resolve, reject) => {
             const abort = () => {
+                const threadId = pending.threadId;
+                const turnId = pending.turnId;
                 pending.finish(stopped());
+                if (threadId && turnId) {
+                    void link.interrupt(threadId, turnId).catch((reason) => {
+                        if (client.current === link && reason.name !== "AbortError") setError(reason.message);
+                    });
+                    return;
+                }
+                if (threadId) attachedThreads.current?.ids.delete(threadId);
+                input.onThread("", link.serviceId);
                 void link.stop().catch((reason) => { if (client.current === link && reason.name !== "AbortError") setError(reason.message); });
             };
             const pending: ActiveRun = {
@@ -277,10 +290,37 @@ export function useCodexAgent(options: {
                 const skills = input.activeSkillContents?.map((skill) => "【完整 Skill：" + skill.name + "，ID：" + skill.id + "】\n" + skill.content).join("\n\n");
                 const hasFiles = Boolean(input.activeSkillContents?.some((skill) => skill.source === "system" && skill.hasFiles));
                 const developerInstructions = canvasAgentSystemPrompt(input.config, buildCanvasAgentSkillPrompt(input.initialState.phase, input.userText, input.getContext(input.initialState), skills, input.contextCheckpoint, hasFiles));
-                const { thread } = await link.rpc<{ thread: { id: string } }>(threadId ? "thread/resume" : "thread/start", {
-                    ...(threadId ? { threadId } : {}), developerInstructions, ...(input.model ? { model: input.model } : {}),
+                const attached = attachedThreads.current?.client === link ? attachedThreads.current.ids : new Set<string>();
+                const start = () => link.rpc<{ thread: { id: string } }>("thread/start", {
+                    developerInstructions, ...(input.model ? { model: input.model } : {}),
                 });
+                let thread: { id: string } | undefined;
+                if (threadId) {
+                    try {
+                        thread = (await link.rpc<{ thread: { id: string } }>("thread/resume", {
+                            threadId, developerInstructions, ...(input.model ? { model: input.model } : {}),
+                        })).thread;
+                    } catch (reason) {
+                        const message = reason instanceof Error ? reason.message : String(reason);
+                        if (message.includes("already has an active writer")) {
+                            try {
+                                thread = (await link.rpc<{ thread: { id: string } }>("thread/fork", {
+                                    threadId, excludeTurns: true, developerInstructions, ...(input.model ? { model: input.model } : {}),
+                                })).thread;
+                            } catch {
+                                thread = (await start()).thread;
+                            }
+                        } else if (message.includes("thread not found")) {
+                            attached.delete(threadId);
+                            thread = (await start()).thread;
+                        } else throw reason;
+                    }
+                } else {
+                    thread = (await start()).thread;
+                }
                 if (pending.finished) return;
+                if (!thread) throw new Error("Codex 对话未就绪");
+                attached.add(thread.id);
                 pending.threadId = thread.id;
                 input.onThread(thread.id, link.serviceId);
                 input.onEvent?.({ status: "thinking", label: "Codex 正在理解画布和创作目标" });

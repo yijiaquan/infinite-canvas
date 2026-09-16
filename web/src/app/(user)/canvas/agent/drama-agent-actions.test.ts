@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import axios from "axios";
 import { executeDramaAgentAction } from "./drama-agent-actions";
-import { CANVAS_AGENT_TOOLS, isCanvasAgentMediaAction, normalizeCanvasAgentAction } from "./canvas-agent-tools";
+import { CANVAS_AGENT_TOOLS, isCanvasAgentMediaAction, normalizeCanvasAgentAction, userLikelyRequestedCanvasAction } from "./canvas-agent-tools";
 import { persistDramaNodeParameters, resolveDramaNodeParameters } from "../utils/drama-generation";
+import { selectVoiceExcerpt } from "../utils/voice-excerpt-analysis";
 
 test("drama edits preserve exact content and do not become media actions", () => {
     const script = "  exact dialogue\n\nending  ";
@@ -14,6 +15,68 @@ test("drama edits preserve exact content and do not become media actions", () =>
     assert.ok(CANVAS_AGENT_TOOLS.some((tool) => tool.function.name === "get_drama_assets"));
     assert.ok(CANVAS_AGENT_TOOLS.some((tool) => tool.function.name === "enqueue_drama_run"));
     assert.equal(isCanvasAgentMediaAction(normalizeCanvasAgentAction("enqueue_drama_run", { clipId: "clip", nodeId: "node", requestId: "once" })), true);
+    assert.ok(CANVAS_AGENT_TOOLS.some((tool) => tool.function.name === "create_audio_excerpt"));
+    assert.equal(isCanvasAgentMediaAction(normalizeCanvasAgentAction("create_audio_excerpt", { sourceNodeId: "video", requestId: "excerpt-once" })), false);
+    assert.ok(CANVAS_AGENT_TOOLS.some((tool) => tool.function.name === "find_voice_excerpt"));
+    assert.equal(isCanvasAgentMediaAction(normalizeCanvasAgentAction("find_voice_excerpt", { sourceNodeId: "video", requestId: "voice-once" })), false);
+});
+
+test("voice excerpt tool normalizes deterministic analysis requests", () => {
+    assert.equal(userLikelyRequestedCanvasAction("自动找到视频中人物说话的四秒声音"), true);
+    assert.deepEqual(normalizeCanvasAgentAction("find_voice_excerpt", { sourceNodeId: "video", requestId: "voice-once" }).arguments, {
+        sourceNodeId: "video", requestId: "voice-once", targetSeconds: 4,
+    });
+    assert.deepEqual(
+        normalizeCanvasAgentAction("find_voice_excerpt", { sourceNodeId: "video", requestId: "voice-once", targetSeconds: 3.5, speaker: "  祁野  ", title: "  祁野候选  " }).arguments,
+        { sourceNodeId: "video", requestId: "voice-once", targetSeconds: 3.5, speaker: "祁野", title: "祁野候选" },
+    );
+    for (const args of [
+        { sourceNodeId: "video", requestId: "x", targetSeconds: 0.49 },
+        { sourceNodeId: "video", requestId: "x", targetSeconds: 12.1 },
+        { sourceNodeId: "video", requestId: "x", targetSeconds: Number.NaN },
+        { sourceNodeId: "video", requestId: "x", url: "https://example.com/media.mp4" },
+        { sourceNodeId: "video", requestId: "x", storageId: "guessed" },
+    ]) assert.throws(() => normalizeCanvasAgentAction("find_voice_excerpt", args));
+});
+
+test("voice excerpt selection uses ASR/VAD timestamps rather than generation configuration", () => {
+    const selection = selectVoiceExcerpt([
+        { startSeconds: 0.2, endSeconds: 0.8, text: "噪声", avgLogProb: -3.8, noSpeechProb: 0.9 },
+        { startSeconds: 3, endSeconds: 5.1, text: "我在这里", avgLogProb: -0.2, noSpeechProb: 0.03 },
+        { startSeconds: 5.3, endSeconds: 7.4, text: "先听我说完", avgLogProb: -0.1, noSpeechProb: 0.02 },
+    ], 4);
+    assert.ok(selection);
+    assert.equal(selection.startSeconds, 3);
+    assert.equal(selection.endSeconds, 7);
+    assert.equal(selection.speakerUnverified, true);
+    assert.equal(selection.shorterThanTarget, false);
+    assert.equal(selectVoiceExcerpt([{ startSeconds: 1, endSeconds: 1.4, text: "太短" }], 4), null);
+});
+
+test("audio excerpt tool normalizes safe operations and rejects unsafe input", () => {
+    assert.equal(userLikelyRequestedCanvasAction("从视频1截取四秒人物声音"), true);
+    assert.equal(userLikelyRequestedCanvasAction("分离这个视频的音频"), true);
+    assert.deepEqual(normalizeCanvasAgentAction("create_audio_excerpt", { sourceNodeId: "video", requestId: "full-track" }).arguments, {
+        sourceNodeId: "video",
+        requestId: "full-track",
+    });
+    assert.deepEqual(
+        normalizeCanvasAgentAction("create_audio_excerpt", { sourceNodeId: "audio", requestId: "clip", startSeconds: 1, endSeconds: 5, title: "  祁野样本  " }).arguments,
+        { sourceNodeId: "audio", requestId: "clip", startSeconds: 1, endSeconds: 5, title: "祁野样本" },
+    );
+    assert.doesNotThrow(() => normalizeCanvasAgentAction("create_audio_excerpt", { sourceNodeId: "video", requestId: "half-second", startSeconds: 0, endSeconds: 0.5 }));
+    for (const args of [
+        { sourceNodeId: "video", requestId: "x", startSeconds: 1 },
+        { sourceNodeId: "video", requestId: "x", endSeconds: 2 },
+        { sourceNodeId: "video", requestId: "x", startSeconds: -1, endSeconds: 2 },
+        { sourceNodeId: "video", requestId: "x", startSeconds: 1, endSeconds: 1.49 },
+        { sourceNodeId: "video", requestId: "x", startSeconds: 2, endSeconds: 1 },
+        { sourceNodeId: "video", requestId: "x", startSeconds: Number.NaN, endSeconds: 2 },
+        { sourceNodeId: "video", requestId: "x", storageId: "guessed" },
+        { sourceNodeId: "video", requestId: "x", url: "https://example.com/media.mp4" },
+    ]) {
+        assert.throws(() => normalizeCanvasAgentAction("create_audio_excerpt", args));
+    }
 });
 
 test("upscale tools normalize safe defaults and reject unsupported resolutions", () => {
@@ -272,20 +335,20 @@ test("asset version resolves owned node storage and adoption uses completed run 
     };
     const base = { token: "token", projectId: "project", episodeId: "episode", canvasId: "canvas", isCurrent: () => true, onChanged: () => undefined, readAssets: async () => catalog };
     try {
-        let resolved: [string, string] | undefined;
+        let resolved: [{ id: string; kind: string }, string] | undefined;
         assert.equal(
             (
                 await executeDramaAgentAction(normalizeCanvasAgentAction("register_drama_asset_version", { assetId: "asset", nodeId: "candidate", note: "v1", expectedRevision: 4 }), {
                     ...base,
-                    resolveNodeStorage: async (assetId, nodeId) => {
-                        resolved = [assetId, nodeId];
+                    resolveNodeStorage: async (asset, nodeId) => {
+                        resolved = [asset, nodeId];
                         return { storageId: "stored" };
                     },
                 })
             )?.ok,
             true,
         );
-        assert.deepEqual(resolved, ["asset", "candidate"]);
+        assert.deepEqual(resolved, [{ id: "asset", kind: "character" }, "candidate"]);
         let projected: unknown;
         const adoption = await executeDramaAgentAction(normalizeCanvasAgentAction("adopt_drama_output", { clipId: "clip", runId: "run", outputIndex: 1, expectedRevision: 0, clipRevision: 3 }), {
             ...base,
@@ -297,6 +360,51 @@ test("asset version resolves owned node storage and adoption uses completed run 
         assert.equal(adoption?.ok, true);
         assert.equal(posts.find((item) => item.url.endsWith("/adoption"))?.data.storageId, "chosen");
         assert.deepEqual(projected, { clipId: "clip", nodeId: "video", kind: "video", runId: "run", output: { storageId: "chosen", url: "/chosen", mimeType: "video/mp4" } });
+    } finally {
+        axios.defaults.adapter = adapter;
+    }
+});
+
+test("voice binding accepts multiple labelled speakers in one Shot", async () => {
+    const adapter = axios.defaults.adapter;
+    const posts: string[] = [];
+    const detail = { project: { id: "project", title: "P", sourceType: "script", sourceText: "", adaptation: "", globalStyle: "", revision: 1 }, episodes: [{ id: "episode", canvasId: "canvas", title: "E", script: "", revision: 1 }] };
+    const clip = { id: "clip", projectId: "project", episodeId: "episode", title: "C02", scene: "", summary: "", entryState: "", exitState: "", shots: [{ id: "shot", title: "", duration: 2, action: "", dialogue: "Alice：实际对白\nBob：回应", speaker: "双人同镜", camera: "", sound: "", entryState: "", exitState: "" }], archived: false, position: 0, revision: 2, createdAt: "", updatedAt: "" };
+    const references = [
+        { assetId: "visual", versionId: "visual-v1", role: "character", order: 0, speaker: "" },
+        { assetId: "voice", versionId: "voice-v1", role: "voice", order: 1, speaker: "Alice" },
+		{ assetId: "voice-bob", versionId: "voice-bob-v1", role: "voice", order: 2, speaker: "Bob" },
+    ];
+    const catalog = {
+        assets: [
+            { id: "visual", projectId: "project", title: "Visual", kind: "character" as const, parentId: "", description: "", adoptedVersionId: "", revision: 1, archived: false },
+            { id: "voice", projectId: "project", title: "Voice", kind: "voice" as const, parentId: "", description: "", adoptedVersionId: "", revision: 1, archived: false },
+			{ id: "voice-bob", projectId: "project", title: "Voice Bob", kind: "voice" as const, parentId: "", description: "", adoptedVersionId: "", revision: 1, archived: false },
+        ],
+        versions: [
+            { id: "visual-v1", assetId: "visual", storageId: "visual-storage", note: "", createdAt: "" },
+            { id: "voice-v1", assetId: "voice", storageId: "voice-storage", note: "", createdAt: "" },
+			{ id: "voice-bob-v1", assetId: "voice-bob", storageId: "voice-bob-storage", note: "", createdAt: "" },
+        ],
+    };
+    axios.defaults.adapter = async (config) => {
+        const url = String(config.url);
+        if (config.method === "post") {
+            posts.push(url);
+            return { status: 200, statusText: "OK", headers: {}, config, data: { code: 0, data: { id: "binding", clipId: "clip", stage: "video", revision: 1, references } } };
+        }
+        const data = url.endsWith("/clips") ? [clip] : url.includes("/bindings/video") ? { id: "binding", clipId: "clip", stage: "video", revision: 0, references: [{ assetId: "visual", versionId: "visual-v1", role: "character", order: 0, speaker: "" }] } : detail;
+        return { status: 200, statusText: "OK", headers: {}, config, data: { code: 0, data } };
+    };
+    const context = { token: "token", projectId: "project", episodeId: "episode", canvasId: "canvas", isCurrent: () => true, onChanged: () => undefined, readAssets: async () => catalog, applyBinding: async () => undefined };
+    try {
+        const invalid = await executeDramaAgentAction(normalizeCanvasAgentAction("update_drama_binding", { clipId: "clip", stage: "video", expectedRevision: 0, references: [...references.slice(0, 1), { ...references[1], speaker: "Qiye" }] }), context);
+        assert.equal(invalid?.ok, false);
+        assert.match(invalid?.message || "", /Alice.*Bob/);
+        assert.equal(posts.length, 0);
+        const saved = await executeDramaAgentAction(normalizeCanvasAgentAction("update_drama_binding", { clipId: "clip", stage: "video", expectedRevision: 0, references }), context);
+        assert.equal(saved?.ok, true);
+        assert.equal(posts.length, 1);
     } finally {
         axios.defaults.adapter = adapter;
     }

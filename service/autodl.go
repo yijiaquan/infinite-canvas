@@ -21,20 +21,20 @@ import (
 const autoDLAPIPath = "/api/v1/comfyui"
 
 type AutoDLInputRule struct {
-	Type      string   `json:"type"`
-	Required  bool     `json:"required"`
-	Default   any      `json:"default,omitempty"`
-	Min       *float64 `json:"min,omitempty"`
-	Max       *float64 `json:"max,omitempty"`
-	Options   []struct {
+	Type     string   `json:"type"`
+	Required bool     `json:"required"`
+	Default  any      `json:"default,omitempty"`
+	Min      *float64 `json:"min,omitempty"`
+	Max      *float64 `json:"max,omitempty"`
+	Options  []struct {
 		Label string `json:"label"`
 	} `json:"options,omitempty"`
 }
 
 type AutoDLWorkflow struct {
-	UUID       string                    `json:"uuid"`
-	Name       string                    `json:"name"`
-	Kind       string                    `json:"kind"`
+	UUID       string                     `json:"uuid"`
+	Name       string                     `json:"name"`
+	Kind       string                     `json:"kind"`
 	InputRules map[string]AutoDLInputRule `json:"input_rules,omitempty"`
 }
 

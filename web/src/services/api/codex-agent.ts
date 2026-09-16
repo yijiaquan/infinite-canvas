@@ -1,4 +1,19 @@
 export type CodexConnection = { endpoint: string; token: string };
+const CANVAS_CODEX_CONNECTION_KEY = "canvas-codex-connection";
+export type CanvasVoiceAnalysisSegment = {
+    startSeconds: number;
+    endSeconds: number;
+    text: string;
+    avgLogProb?: number;
+    noSpeechProb?: number;
+};
+export type CanvasVoiceAnalysisResult = {
+    ok: boolean;
+    code?: string;
+    message?: string;
+    language?: string;
+    segments?: CanvasVoiceAnalysisSegment[];
+};
 export type CodexRpcEvent = {
     id?: string | number;
     generation: number;
@@ -38,6 +53,42 @@ export async function readCodexAgentConfig(endpoint: string): Promise<{ url: str
     if (!response.ok) throw new Error(result.error || "无法读取本地 Agent 状态");
     return result;
 }
+export function readStoredCodexAgentConnection(): CodexConnection | null {
+    try {
+        const value = JSON.parse(localStorage.getItem(CANVAS_CODEX_CONNECTION_KEY) || "null");
+        if (!value || typeof value.endpoint !== "string" || typeof value.token !== "string" || !value.token.trim()) return null;
+        return { endpoint: normalizeCodexEndpoint(value.endpoint), token: value.token.trim() };
+    } catch {
+        return null;
+    }
+}
+export async function analyzeCanvasVoiceExcerpt(media: Blob, targetSeconds: number, signal?: AbortSignal): Promise<CanvasVoiceAnalysisResult> {
+    const connection = readStoredCodexAgentConnection();
+    if (!connection) return { ok: false, code: "speech_analysis_unavailable", message: "未连接支持语音分析的本地 Canvas Agent" };
+    let response: Response;
+    try {
+        response = await fetch(connection.endpoint + "/voice-analysis", {
+            method: "POST",
+            headers: {
+                "content-type": "application/octet-stream",
+                "x-canvas-agent-token": connection.token,
+                "x-canvas-media-mime": media.type || "application/octet-stream",
+                "x-canvas-voice-target-seconds": String(targetSeconds),
+            },
+            body: media,
+            signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(100_000)]) : AbortSignal.timeout(100_000),
+        });
+    } catch (error) {
+        return { ok: false, code: "speech_analysis_unavailable", message: "本地语音分析服务不可用：" + (error instanceof Error ? error.message : "未知错误") };
+    }
+    try {
+        const result = await parseCodexAgentResponse<CanvasVoiceAnalysisResult>(response);
+        if (!response.ok) return { ok: false, code: result.code || "speech_analysis_unavailable", message: result.message || "本地语音分析服务请求失败" };
+        return result;
+    } catch (error) {
+        return { ok: false, code: "speech_analysis_unavailable", message: error instanceof Error ? error.message : "本地语音分析服务响应无效" };
+    }
+}
 export function createCodexAgentClient(
     connection: CodexConnection,
     canvasId: string,
@@ -52,6 +103,9 @@ export function createCodexAgentClient(
     let registered = false;
     let activitySequence = 0;
     let registrationRetry: ReturnType<typeof setTimeout> | undefined;
+    const connectionTimeout = setTimeout(() => {
+        if (!registered && !lifetime.signal.aborted) fail(new Error("连接本地 Agent 超时，请确认服务仍在运行后重试"));
+    }, 12_000);
     const syncCodexGeneration = (generation: number, message: string) => {
         if (!(generation > codexGeneration)) return;
         const previous = codexGeneration;
@@ -111,6 +165,7 @@ export function createCodexAgentClient(
         void request<{ serviceId: string }>("/connect", { canvasId, tools, activity: currentActivity })
             .then((result) => {
                 registered = true;
+                clearTimeout(connectionTimeout);
                 serviceId = result.serviceId;
                 return handlers.ready();
             })
@@ -128,6 +183,7 @@ export function createCodexAgentClient(
     return {
         rpc,
         stop: () => { codexGeneration += 1; return rpc("bridge/stop"); },
+        interrupt: (threadId: string, turnId: string) => rpc("turn/interrupt", { threadId, turnId }),
         get serviceId() { return serviceId; },
         reply: (event: CodexRpcEvent, result?: unknown, error?: { code: number; message: string }) => request("/reply", { id: event.id, generation: event.generation, result, error }),
         result: (requestId: string, result?: unknown, error?: string) => request("/result", { requestId, result, error }),
@@ -139,6 +195,7 @@ export function createCodexAgentClient(
             window.removeEventListener("pageshow", activate);
             document.removeEventListener("visibilitychange", activate);
             clearTimeout(registrationRetry);
+            clearTimeout(connectionTimeout);
             events.close();
             lifetime.abort();
         },

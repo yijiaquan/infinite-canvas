@@ -42,6 +42,7 @@ import { createVideoGenerationTask, pollVideoGenerationTaskStatus, VIDEO_POLL_IN
 import { channelProtocolForConfig, defaultConfig, resolveModelForCapability, type AiConfig, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
 import { collectImageStorageKeys, deleteStoredImages, resolveImageUrl, uploadImage, uploadRemoteImageToServer, type UploadedImage } from "@/services/image-storage";
 import { downloadRemoteMedia, resolveMediaUrl, uploadMediaFile, uploadRemoteMediaToServer, type UploadedFile } from "@/services/file-storage";
+import { analyzeCanvasVoiceExcerpt } from "@/services/api/codex-agent";
 import { nanoid } from "nanoid";
 import { getDataUrlByteSize, readImageMeta } from "@/lib/image-utils";
 import { canvasThemes, type CanvasBackgroundMode } from "@/lib/canvas-theme";
@@ -52,6 +53,7 @@ import { useUserStore } from "@/stores/use-user-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { cropDataUrl, splitDataUrl, upscaleDataUrl } from "../utils/canvas-image-data";
 import { fitNodeSize, nodeSizeFromRatio } from "../utils/canvas-node-size";
+import { selectVoiceExcerpt } from "../utils/voice-excerpt-analysis";
 import { captureVideoFrame, type VideoFramePosition } from "../utils/canvas-video-frame";
 import { PANORAMA_IMAGE_SIZE, PANORAMA_NODE_SIZE, buildPanoramaPrompt, isCanvasImageNodeType, isPanoramaNodeType } from "../utils/canvas-panorama";
 import { applyCameraPrompt } from "../utils/canvas-camera";
@@ -2007,30 +2009,31 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     );
 
     const createAudioFileNode = useCallback(
-        async (file: File, position: Position) => {
+        async (file: File, position: Position, options?: { title?: string; metadata?: Partial<CanvasNodeMetadata>; quiet?: boolean }) => {
             const hideLoading = message.loading("正在上传音频...", 0);
             try {
                 const audio = await uploadMediaFile(file, "audio");
                 const spec = NODE_DEFAULT_SIZE[CanvasNodeType.Audio];
                 const id = `audio-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-                setNodes((prev) => [
-                    ...prev,
-                    {
-                        id,
-                        type: CanvasNodeType.Audio,
-                        title: file.name,
-                        position: { x: position.x - spec.width / 2, y: position.y - spec.height / 2 },
-                        width: spec.width,
-                        height: spec.height,
-                        metadata: audioMetadata(audio),
-                    },
-                ]);
+                const node: CanvasNodeData = {
+                    id,
+                    type: CanvasNodeType.Audio,
+                    title: options?.title || file.name,
+                    position: { x: position.x - spec.width / 2, y: position.y - spec.height / 2 },
+                    width: spec.width,
+                    height: spec.height,
+                    metadata: { ...audioMetadata(audio), ...options?.metadata },
+                };
+                const nextNodes = [...nodesRef.current, node];
+                nodesRef.current = nextNodes;
+                setNodes(nextNodes);
                 setSelectedNodeIds(new Set([id]));
                 setSelectedConnectionId(null);
-                return id;
+                return node;
             } catch (error) {
                 console.error("Upload audio node failed:", error);
-                message.error("音频上传失败");
+                if (!options?.quiet) message.error("音频上传失败");
+                if (options?.quiet) throw new Error(`音频上传失败：${error instanceof Error ? error.message : "未知错误"}`);
             } finally {
                 hideLoading();
             }
@@ -2041,11 +2044,22 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     const extractingAudioRef = useRef(new Set<string>());
 
     const extractAudio = useCallback(
-        async (node: CanvasNodeData, trim?: { start: number; end: number }) => {
-            if ((node.type !== CanvasNodeType.Video && node.type !== CanvasNodeType.Audio) || !node.metadata?.content || extractingAudioRef.current.has(node.id)) return;
+        async (node: CanvasNodeData, trim?: { start: number; end: number }, options?: { title?: string; requestId?: string; quiet?: boolean; metadata?: Partial<CanvasNodeMetadata> }) => {
+            if ((node.type !== CanvasNodeType.Video && node.type !== CanvasNodeType.Audio) || !node.metadata?.content) throw new Error("来源节点不是已完成的视频或音频");
+            if (node.type === CanvasNodeType.Audio && !trim) throw new Error("音频来源必须提供截取时间");
+            const existing = options?.requestId ? nodesRef.current.find((item) => item.metadata?.audioExcerptRequestId === options.requestId) : undefined;
+            if (existing) {
+                const sameSource = existing.metadata?.audioExcerptSourceNodeId === node.id;
+                const sameStart = existing.metadata?.audioExcerptStartSeconds === (trim?.start ?? 0);
+                const sameEnd = trim ? existing.metadata?.audioExcerptEndSeconds === trim.end : true;
+                if (!sameSource || !sameStart || !sameEnd) throw new Error("requestId 已用于不同的音频提取请求");
+                const connection = connectionsRef.current.find((item) => item.fromNodeId === node.id && item.toNodeId === existing.id);
+                return { node: existing, connectionId: connection?.id || "" };
+            }
+            if (extractingAudioRef.current.has(node.id)) throw new Error("该节点正在处理音频，请稍后重试");
             extractingAudioRef.current.add(node.id);
             if (trim) setTrimmingAudio(true);
-            const hideLoading = message.loading(trim ? "正在截取音频..." : "正在分离音频...", 0);
+            const hideLoading = options?.quiet ? () => undefined : message.loading(trim ? "正在截取音频..." : "正在分离音频...", 0);
             let input: import("mediabunny").Input | undefined;
             let conversion: import("mediabunny").Conversion | undefined;
 
@@ -2057,7 +2071,9 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
                 const audioTrack = await input.getPrimaryAudioTrack();
                 if (!audioTrack) throw new Error("该文件没有音轨");
-                if (trim && trim.end > (await audioTrack.computeDuration())) throw new Error("结束时间不能超过音频时长");
+                const sourceDuration = await audioTrack.computeDuration();
+                if (!Number.isFinite(sourceDuration) || sourceDuration <= 0) throw new Error("无法读取音频时长");
+                if (trim && trim.end > sourceDuration + 0.001) throw new Error("结束时间不能超过音频时长");
 
                 const target = new BufferTarget();
                 const output = new Output({ format: new WavOutputFormat(), target });
@@ -2076,22 +2092,42 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 if (!conversion.isValid) throw new Error("当前浏览器无法解码该文件的音频");
                 await conversion.execute();
 
-                const file = new File([target.buffer!], `${node.title || (trim ? "音频" : "视频")} ${trim ? "截取" : "音频"}.wav`, {
+                const title = options?.title || `${node.title || (trim ? "音频" : "视频")} ${trim ? "截取" : "音频"}`;
+                const file = new File([target.buffer!], `${title}.wav`, {
                     type: "audio/wav",
                 });
                 const width = NODE_DEFAULT_SIZE[CanvasNodeType.Audio].width;
                 hideLoading();
-                const audioNodeId = await createAudioFileNode(file, {
-                    x: node.position.x + node.width + 96 + width / 2,
-                    y: node.position.y + node.height / 2,
-                });
-
-                if (audioNodeId) {
-                    setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: node.id, toNodeId: audioNodeId }]);
-                }
-                return audioNodeId;
+                const startSeconds = trim?.start ?? 0;
+                const endSeconds = trim?.end ?? sourceDuration;
+                const audioNode = await createAudioFileNode(
+                    file,
+                    {
+                        x: node.position.x + node.width + 96 + width / 2,
+                        y: node.position.y + node.height / 2,
+                    },
+                    {
+                        title,
+                        quiet: options?.quiet,
+                        metadata: {
+                            audioExcerptRequestId: options?.requestId,
+                            audioExcerptSourceNodeId: node.id,
+                            audioExcerptSourceType: node.type === CanvasNodeType.Video ? "video" : "audio",
+                            audioExcerptStartSeconds: startSeconds,
+                            audioExcerptEndSeconds: endSeconds,
+                            ...options?.metadata,
+                        },
+                    },
+                );
+                if (!audioNode) return;
+                const connection = { id: nanoid(), fromNodeId: node.id, toNodeId: audioNode.id };
+                const nextConnections = [...connectionsRef.current, connection];
+                connectionsRef.current = nextConnections;
+                setConnections(nextConnections);
+                return { node: audioNode, connectionId: connection.id };
             } catch (error) {
-                message.error(error instanceof Error ? error.message : "音频处理失败");
+                if (!options?.quiet) message.error(error instanceof Error ? error.message : "音频处理失败");
+                if (options?.quiet) throw error;
             } finally {
                 await conversion?.cancel().catch(console.error);
                 input?.dispose();
@@ -2101,6 +2137,63 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             }
         },
         [createAudioFileNode, message],
+    );
+
+    const findVoiceExcerpt = useCallback(
+        async (node: CanvasNodeData, options: { requestId: string; targetSeconds: number; speaker?: string; title?: string; quiet?: boolean }) => {
+            if ((node.type !== CanvasNodeType.Video && node.type !== CanvasNodeType.Audio) || !node.metadata?.content) throw new Error("来源节点不是已完成的视频或音频");
+            const existing = nodesRef.current.find((item) => item.metadata?.audioExcerptRequestId === options.requestId);
+            if (existing) {
+                if (existing.metadata?.audioExcerptSourceNodeId !== node.id) throw new Error("requestId 已用于不同的人声定位请求");
+                const connection = connectionsRef.current.find((item) => item.fromNodeId === node.id && item.toNodeId === existing.id);
+                return {
+                    node: existing,
+                    connectionId: connection?.id || "",
+                    selection: {
+                        startSeconds: existing.metadata?.audioExcerptStartSeconds || 0,
+                        endSeconds: existing.metadata?.audioExcerptEndSeconds || 0,
+                        duration: (existing.metadata?.audioExcerptEndSeconds || 0) - (existing.metadata?.audioExcerptStartSeconds || 0),
+                        transcript: existing.metadata?.audioExcerptTranscript || "",
+                        confidence: existing.metadata?.audioExcerptConfidence || 0,
+                        shorterThanTarget: existing.metadata?.audioExcerptShorterThanTarget === true,
+                        speakerUnverified: existing.metadata?.audioExcerptSpeakerUnverified !== false,
+                    },
+                };
+            }
+
+            const url = await resolveMediaUrl(node.metadata.storageKey, node.metadata.content);
+            const blob = await downloadRemoteMedia(url);
+            const analysis = await analyzeCanvasVoiceExcerpt(blob, options.targetSeconds);
+            if (!analysis.ok) {
+                const error = new Error(analysis.message || "语音分析失败");
+                (error as Error & { code?: string }).code = analysis.code;
+                throw error;
+            }
+            const selection = selectVoiceExcerpt(analysis.segments || [], options.targetSeconds);
+            if (!selection) {
+                const error = new Error("未找到满足最短时长的连续人声");
+                (error as Error & { code?: string }).code = "speech_not_found";
+                throw error;
+            }
+            const speakerSuffix = options.speaker ? ` · ${options.speaker} 候选` : " · 人声候选";
+            const result = await extractAudio(node, { start: selection.startSeconds, end: selection.endSeconds }, {
+                requestId: options.requestId,
+                title: options.title || `${node.title || "视频"}${speakerSuffix}`,
+                quiet: options.quiet,
+                metadata: {
+                    audioExcerptTranscript: selection.transcript,
+                    audioExcerptConfidence: selection.confidence,
+                    audioExcerptShorterThanTarget: selection.shorterThanTarget,
+                    audioExcerptSpeaker: options.speaker,
+                    audioExcerptSpeakerUnverified: true,
+                    audioExcerptAnalysisMethod: "faster-whisper-vad",
+                    audioExcerptTargetSeconds: options.targetSeconds,
+                },
+            });
+            if (!result?.node) throw new Error("语音候选未创建");
+            return { ...result, selection };
+        },
+        [extractAudio],
     );
 
     const createTextNodeFromClipboard = useCallback(
@@ -3882,6 +3975,8 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 action.name === "generate_video" ||
                 action.name === "upscale_video" ||
                 action.name === "generate_audio" ||
+                action.name === "create_audio_excerpt" ||
+                action.name === "find_voice_excerpt" ||
                 action.name === "create_text_node" ||
                 action.name === "update_text_node" ||
                 action.name === "update_node" ||
@@ -3960,9 +4055,10 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                         await flushDramaCanvasSave(projectId);
                         return { nodeId: node.id, prompt: input.prompt, parameters: input.parameters };
                     },
-                    resolveNodeStorage: async (assetId, nodeId) => {
+                    resolveNodeStorage: async (asset, nodeId) => {
                         const node = getNode(nodeId);
-                        if (!node || node.metadata?.dramaAssetId !== assetId || ![CanvasNodeType.Image, CanvasNodeType.Video, CanvasNodeType.Audio].includes(node.type) || !node.metadata?.content) throw new Error("节点不是该资产已完成的候选媒体");
+                        const expectedType = asset.kind === "voice" ? CanvasNodeType.Audio : CanvasNodeType.Image;
+                        if (!node || node.type !== expectedType || !node.metadata?.content) throw new Error(asset.kind === "voice" ? "节点不是当前画布可读取的已完成音频媒体" : "节点不是当前画布可读取的已完成图片媒体");
                         const registered = registeredDramaStorageId(node.metadata.storageKey);
                         if (registered) return { storageId: registered };
                         const response = await fetch(node.metadata.content);
@@ -4109,6 +4205,129 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 if (dramaResult) return dramaResult;
                 if (dramaProject?.dramaProjectId && ["generate_image", "edit_image", "generate_video", "generate_audio"].includes(action.name)) {
                     return { ok: false, code: "formal_drama_tool_required", message: "正式漫剧画布必须使用漫剧资产候选或漫剧运行工具，不能绕过版本、绑定和运行记录" };
+                }
+                if (action.name === "create_audio_excerpt") {
+                    const sourceNodeId = stringValue("sourceNodeId");
+                    const source = getNode(sourceNodeId);
+                    if (!source) return missingNodeResult(sourceNodeId);
+                    if (source.type !== CanvasNodeType.Video && source.type !== CanvasNodeType.Audio) {
+                        return { ok: false, code: "unsupported_source_type", message: "音频提取只接受视频或音频节点" };
+                    }
+                    if (!source.metadata?.content || source.metadata.status === NODE_STATUS_LOADING || source.metadata.status === NODE_STATUS_ERROR) {
+                        return { ok: false, code: "media_not_ready", message: "来源媒体尚未完成或无法读取" };
+                    }
+                    const hasStart = typeof args.startSeconds === "number";
+                    const trim = hasStart ? { start: args.startSeconds as number, end: args.endSeconds as number } : undefined;
+                    if (source.type === CanvasNodeType.Audio && !trim) {
+                        return { ok: false, code: "audio_trim_required", message: "音频来源必须提供截取起止时间" };
+                    }
+                    try {
+                        const result = await extractAudio(source, trim, {
+                            requestId: stringValue("requestId"),
+                            title: stringValue("title") || undefined,
+                            quiet: true,
+                        });
+                        if (!result?.node) return { ok: false, code: "audio_processing_failed", message: "音频处理未产生结果" };
+                        updateProject(projectId, { nodes: nodesRef.current, connections: connectionsRef.current });
+                        try {
+                            await flushDramaCanvasSave(projectId);
+                        } catch (error) {
+                            return {
+                                ok: false,
+                                code: "canvas_save_failed",
+                                message: "音频节点已创建，但画布持久化尚未确认；请使用同一 requestId 重试",
+                                nodeId: result.node.id,
+                                connectionId: result.connectionId,
+                                details: error instanceof Error ? error.message : "画布保存失败",
+                            };
+                        }
+                        return {
+                            ok: true,
+                            sourceNodeId: source.id,
+                            nodeId: result.node.id,
+                            connectionId: result.connectionId,
+                            title: result.node.title,
+                            duration: Number((((trim?.end ?? result.node.metadata?.audioExcerptEndSeconds ?? 0) - (trim?.start ?? 0))).toFixed(3)),
+                            bytes: result.node.metadata?.bytes || 0,
+                            mimeType: result.node.metadata?.mimeType || "audio/wav",
+                            startSeconds: result.node.metadata?.audioExcerptStartSeconds || 0,
+                            endSeconds: result.node.metadata?.audioExcerptEndSeconds || 0,
+                        };
+                    } catch (error) {
+                        const detail = error instanceof Error ? error.message : "音频处理失败";
+                        const code = detail.includes("没有音轨")
+                            ? "audio_track_not_found"
+                            : detail.includes("结束时间") || detail.includes("起止时间")
+                              ? "invalid_audio_range"
+                              : detail.includes("无法解码")
+                                ? "audio_decode_failed"
+                                : detail.includes("下载") || detail.includes("读取")
+                                  ? "media_read_failed"
+                                  : detail.includes("上传")
+                                    ? "audio_upload_failed"
+                                    : "audio_processing_failed";
+                        return { ok: false, code, message: detail };
+                    }
+                }
+                if (action.name === "find_voice_excerpt") {
+                    const sourceNodeId = stringValue("sourceNodeId");
+                    const source = getNode(sourceNodeId);
+                    if (!source) return missingNodeResult(sourceNodeId);
+                    if (source.type !== CanvasNodeType.Video && source.type !== CanvasNodeType.Audio) {
+                        return { ok: false, code: "unsupported_source_type", message: "人声定位只接受视频或音频节点" };
+                    }
+                    if (!source.metadata?.content || source.metadata.status === NODE_STATUS_LOADING || source.metadata.status === NODE_STATUS_ERROR) {
+                        return { ok: false, code: "media_not_ready", message: "来源媒体尚未完成或无法读取" };
+                    }
+                    try {
+                        const result = await findVoiceExcerpt(source, {
+                            requestId: stringValue("requestId"),
+                            targetSeconds: args.targetSeconds as number,
+                            speaker: stringValue("speaker") || undefined,
+                            title: stringValue("title") || undefined,
+                            quiet: true,
+                        });
+                        updateProject(projectId, { nodes: nodesRef.current, connections: connectionsRef.current });
+                        try {
+                            await flushDramaCanvasSave(projectId);
+                        } catch (error) {
+                            return {
+                                ok: false,
+                                code: "canvas_save_failed",
+                                message: "人声候选已创建，但画布持久化尚未确认；请使用同一 requestId 重试",
+                                nodeId: result.node.id,
+                                connectionId: result.connectionId,
+                                details: error instanceof Error ? error.message : "画布保存失败",
+                            };
+                        }
+                        return {
+                            ok: true,
+                            sourceNodeId: source.id,
+                            nodeId: result.node.id,
+                            connectionId: result.connectionId,
+                            title: result.node.title,
+                            duration: result.selection.duration,
+                            bytes: result.node.metadata?.bytes || 0,
+                            mimeType: result.node.metadata?.mimeType || "audio/wav",
+                            startSeconds: result.selection.startSeconds,
+                            endSeconds: result.selection.endSeconds,
+                            transcript: result.selection.transcript,
+                            confidence: result.selection.confidence,
+                            speaker: stringValue("speaker") || undefined,
+                            speakerUnverified: result.selection.speakerUnverified,
+                            shorterThanTarget: result.selection.shorterThanTarget,
+                            requiresAudition: true,
+                        };
+                    } catch (error) {
+                        const detail = error instanceof Error ? error.message : "人声定位失败";
+                        const code = (error as Error & { code?: string }).code
+                            || (detail.includes("没有音轨") ? "audio_track_not_found"
+                                : detail.includes("未找到") ? "speech_not_found"
+                                    : detail.includes("下载") || detail.includes("读取") ? "media_read_failed"
+                                        : detail.includes("上传") ? "audio_upload_failed"
+                                            : "speech_analysis_failed");
+                        return { ok: false, code, message: detail };
+                    }
                 }
                 if (action.name === "set_agent_state") {
                     const referencedNodeIds = [...stringValues("approvedNodeIds"), ...stringValues("referenceNodeIds")];
@@ -4581,7 +4800,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 return { ok: false, code: "tool_error", message: error instanceof Error ? error.message : "画布工具执行失败" };
             }
         },
-        [agentEffectiveConfig, createGroupFromSelection, currentProject?.title, deleteConnection, deleteNodes, getCanvasCenter, handleGenerateNode, isAiConfigReady, projectId, renameProject, resolvedAgentConfig.autoGenerateMedia, updateProject],
+        [agentEffectiveConfig, createGroupFromSelection, currentProject?.title, deleteConnection, deleteNodes, extractAudio, findVoiceExcerpt, getCanvasCenter, handleGenerateNode, isAiConfigReady, projectId, renameProject, resolvedAgentConfig.autoGenerateMedia, updateProject],
     );
 
     const handleRetryNode = useCallback(

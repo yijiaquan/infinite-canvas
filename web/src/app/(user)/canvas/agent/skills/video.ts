@@ -80,7 +80,14 @@ export const VIDEO_SKILL = String.raw`
 
 - 不询问无法执行的选项。
 - 需要角色音色、对白或旁白时使用独立 generate_audio。
-- 不声称最终 video 节点含声音。
+- 不承诺新生成的 video 节点含声音。
+
+### 已完成视频的音频处理
+
+- videoSupportsAudio 和 generateAudio 仅约束未来生成，不能判断已经完成的 MP4 有没有音轨。
+- 用户要求“分离音频”时，对真实视频节点调用 create_audio_excerpt 且不传时间，得到完整 WAV 候选。工具返回 audio_track_not_found 前，不得说视频无音轨或画布不支持分离。
+- 用户要求“先分离、再裁剪”时，必须按两步执行：先从 video 创建完整 audio 节点，随后从该 audio 节点按明确的起止秒数创建裁剪节点。两个节点都保留，原视频不覆盖。
+- 如果需要自动寻找人物说话区间，调用 find_voice_excerpt；它依据真实媒体分析，不依据生成通道配置。其结果是待试听候选，不是已确认的人物音色。
 
 ## 6. 媒体编号与引用一致性
 

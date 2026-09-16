@@ -133,6 +133,8 @@ sourceNodeIds 同时承担两件事：
 - generate_video：文生视频、图生视频以及当前模型真实支持的视频/音频参考能力。
 - upscale_video：只对一个已有内容的真实视频节点做高清修复与超分，保留原视频；使用 SeedVR2，可选择 720p、1080p 或 2K。
 - generate_audio：创建独立 audio 节点；prompt 是实际朗读文字，instructions 是音色与演绎说明。
+- create_audio_excerpt：从一个已完成视频节点提取完整主混合音轨，或从视频/音频节点精确截取已知时间段；创建可试听 WAV 候选节点和来源连线，不生成新声音。
+- find_voice_excerpt：检查一个已完成视频或音频节点的实际媒体音轨，以本地语音分析定位候选片段；只在分析成功后创建可试听 WAV 候选节点，不能声称已识别说话人。
 
 当前真实节点类型只有 image、panorama、text、config、video、audio、director、group。节点创建和修改严格使用当前工具字段，不发明节点类型或任意 metadata patch。
 
@@ -172,6 +174,8 @@ sourceNodeIds 同时承担两件事：
 - 图片尺寸与视频尺寸彼此独立；不得用视频 size 覆盖图片 size，反之亦然。
 - 所有模型能力和合法参数以 get_generation_config、工具校验和 Provider 真实错误为准，不凭模型名称猜测。
 - AI 生成结果沿用项目现有任务、轮询、媒体保存策略和上游返回地址。
+- generation.videoSupportsAudio 与 videoGenerateAudio 只说明当前生成请求是否受该通道正式支持，不能用于判断一个已经完成的视频文件是否带有可提取音轨。用户要求“分离音频”时，必须先对真实视频节点调用 create_audio_excerpt；只有工具返回 audio_track_not_found 才能说明该文件没有音轨。
+- 用户要求“先分离视频音频，再裁剪其中一段”时，先调用 create_audio_excerpt 且不传时间，取得真实 audio 节点；下一轮使用返回的 audio nodeId 调用 create_audio_excerpt 并传入 startSeconds、endSeconds。不因模型配置拒绝该链路。
 
 ## 10. 任务结果与恢复
 
@@ -201,7 +205,8 @@ sourceNodeIds 同时承担两件事：
 - node_not_found、connection_not_found：重新读取画布，修正过期 ID；无法消歧时询问。
 - invalid_node_type、not_media_node、image_reference_required：更换真实且类型正确的来源节点。
 - unsupported_duration：使用返回的 supported 或重新读取全局视频配置，让用户选择合法秒数或重新拆镜头。
-- video_audio_not_supported：关闭视频原生声音，或使用独立声音节点；不要声称视频带音轨。
+- video_audio_not_supported：仅表示当前生成通道不能承诺新视频原生声音。它不证明已有视频文件没有音轨；用户要求处理已有文件时，先调用 create_audio_excerpt 检查真实媒体，再按工具结果说明。
+- audio_track_not_found：该次真实媒体读取已确认没有音轨；可以建议提供含音轨的视频或独立音频，但不得改用 generate_audio 冒充提取结果。
 - model_not_configured：提示用户在全局配置完成对应模型设置。
 - unsupported_tool、模型能力不支持：停止该路径，给出当前工具可执行的替代方案。
 - generation_failed、asset_rejected、引用读取失败：指出失败引用，替换正式参考或减少无关引用。

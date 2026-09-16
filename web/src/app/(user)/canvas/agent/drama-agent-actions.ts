@@ -1,8 +1,9 @@
 import { createDramaClip, getDramaProject, listDramaClips, reorderDramaClips, updateDramaClip, updateDramaEpisode, updateDramaProject, type DramaClip, type DramaClipDraft, type DramaEpisodeDraft, type DramaProjectDraft } from "@/services/api/drama";
-import { createDramaAsset, createDramaAssetVersion, getDramaBinding, updateDramaAsset, updateDramaBinding, type DramaAssetCatalog, type DramaBinding } from "@/services/api/drama-assets";
+import { createDramaAsset, createDramaAssetVersion, getDramaBinding, updateDramaAsset, updateDramaBinding, type DramaAsset, type DramaAssetCatalog, type DramaBinding } from "@/services/api/drama-assets";
 import { adoptDramaOutput, downloadDramaEpisode, listDramaAdoptions } from "@/services/api/drama-adoption";
 import { cancelDramaRun, enqueueDramaRun, listDramaEpisodeRuns, listDramaRuns, previewDramaRun, recheckDramaRun, type DramaRun, type DramaRunInput } from "@/services/api/drama-runs";
 import { normalizeCanvasAgentAction, type CanvasAgentAction, type CanvasAgentToolResult } from "./canvas-agent-tools";
+import { dramaClipDialogueSpeakers } from "../utils/drama-dialogue-speakers";
 
 const DRAMA_ACTIONS = new Set([
     "get_drama_project",
@@ -47,7 +48,7 @@ export type DramaAgentContext = {
     prepareClipNodes?: (clips: DramaClip[]) => Promise<unknown>;
     repairClipGroupLayout?: (clipIds: string[]) => Promise<unknown>;
     updateGenerationNode?: (input: { clipId: string; nodeId: string; stage: "storyboard" | "video"; prompt: string; parameters?: Record<string, string | number | boolean> }) => Promise<unknown>;
-    resolveNodeStorage?: (assetId: string, nodeId: string) => Promise<{ storageId: string }>;
+    resolveNodeStorage?: (asset: Pick<DramaAsset, "id" | "kind">, nodeId: string) => Promise<{ storageId: string }>;
     applyBinding?: (binding: DramaBinding, catalog: DramaAssetCatalog) => Promise<unknown>;
     buildRunInput?: (clipId: string, nodeId: string, requestId?: string) => Promise<{ input: DramaRunInput; boardUpdated?: boolean }>;
     onRunEnqueued?: (nodeId: string, run: DramaRun) => Promise<void>;
@@ -184,7 +185,7 @@ export async function executeDramaAgentAction(action: CanvasAgentAction, context
                 const asset = catalog.assets.find((item) => item.id === args.assetId);
                 if (!asset) throw new Error("资产不存在");
                 checkRevision(args.expectedRevision, asset.revision);
-                const resolved = await requiredCallback(context.resolveNodeStorage, "资产版本登记")(asset.id, args.nodeId as string);
+                const resolved = await requiredCallback(context.resolveNodeStorage, "资产版本登记")({ id: asset.id, kind: asset.kind }, args.nodeId as string);
                 data = await createDramaAssetVersion(token, projectId, asset.id, { storageId: resolved.storageId, note: args.note as string, expectedRevision: asset.revision });
                 changed = true;
                 break;
@@ -194,12 +195,16 @@ export async function executeDramaAgentAction(action: CanvasAgentAction, context
                 data = await getDramaBinding(token, projectId, episodeId, args.clipId as string, args.stage as string);
                 break;
             case "update_drama_binding": {
-                await requireClip(args.clipId, false);
+                const clip = await requireClip(args.clipId, false);
                 const binding = await getDramaBinding(token, projectId, episodeId, args.clipId as string, args.stage as string);
                 checkRevision(args.expectedRevision, binding.revision);
                 const catalog = await context.readAssets();
-                for (const ref of args.references as Array<{ assetId: string; versionId: string }>) {
+                const eligibleSpeakers = dramaClipDialogueSpeakers(clip.shots);
+                for (const ref of args.references as Array<{ assetId: string; versionId: string; role: string; speaker: string }>) {
                     if (!catalog.assets.some((item) => item.id === ref.assetId && !item.archived) || !catalog.versions.some((item) => item.id === ref.versionId && item.assetId === ref.assetId)) throw new Error("绑定引用的资产或版本不存在");
+                    if (ref.role === "voice" && !eligibleSpeakers.includes(ref.speaker)) {
+                        throw new Error(eligibleSpeakers.length ? `Clip ${clip.title} 没有 ${ref.speaker} 的非空对白；可绑定的说话者：${eligibleSpeakers.join("、")}` : `Clip ${clip.title} 没有非空对白，不能绑定 Voice`);
+                    }
                 }
                 data = await updateDramaBinding(token, projectId, episodeId, args.clipId as string, args.stage as string, args.references as never, binding.revision);
                 await requiredCallback(context.applyBinding, "绑定画布同步")(data as DramaBinding, catalog);

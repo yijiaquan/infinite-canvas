@@ -16,6 +16,10 @@ npx -y @tigerowo/canvas-agent@latest
 
 Codex 尚未登录时执行 `npx -y @openai/codex@0.153.4 login` 并完成登录，已有登录态会直接复用。
 
+### 自动定位视频人声
+
+`find_voice_excerpt` 会对当前画布节点的真实媒体音轨执行本地语音分析，并只创建待试听的 WAV 候选。它要求本机 Python 及 `faster-whisper`、`av` 依赖；默认使用本地缓存的 `faster-whisper-small`，不会下载模型。可用 `CANVAS_AGENT_PYTHON` 指定 Python 可执行文件、用 `CANVAS_AGENT_WHISPER_MODEL` 选择已安装的本地模型。服务或依赖不可用时工具返回明确错误，不会伪造音频节点。
+
 ## 插件自动连接
 
 在 Codex 所在电脑执行：

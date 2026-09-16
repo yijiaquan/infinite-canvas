@@ -99,6 +99,18 @@ export type CanvasNodeMetadata = {
     mimeType?: string;
     bytes?: number;
     durationMs?: number;
+    audioExcerptRequestId?: string;
+    audioExcerptSourceNodeId?: string;
+    audioExcerptSourceType?: "video" | "audio";
+    audioExcerptStartSeconds?: number;
+    audioExcerptEndSeconds?: number;
+    audioExcerptTargetSeconds?: number;
+    audioExcerptTranscript?: string;
+    audioExcerptConfidence?: number;
+    audioExcerptShorterThanTarget?: boolean;
+    audioExcerptSpeaker?: string;
+    audioExcerptSpeakerUnverified?: boolean;
+    audioExcerptAnalysisMethod?: "faster-whisper-vad";
     startedAt?: number;
     progress?: number;
     imageTaskId?: string;

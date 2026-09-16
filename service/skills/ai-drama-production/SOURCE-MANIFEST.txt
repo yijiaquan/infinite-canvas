@@ -1,6 +1,6 @@
 {
   "package": "ai-drama-production",
-  "version": 5,
+  "version": 9,
   "files": [
     {
       "source": ".agents/skills/ai-drama-audio-post-production/assets/templates/01-voice-bible.md",
@@ -15,7 +15,7 @@
     {
       "source": ".agents/skills/ai-drama-audio-post-production/SKILL.md",
       "output": "references/ai-drama-audio-post-production/SKILL.md",
-      "sha256": "284efbc71b1a3568c7652f15f17c5575a1614c505e8c659031cbd54771554a1d"
+      "sha256": "ab5044f3e0bfd49bae248e51e708fd3bc40db068614131699bd8e435022bad41"
     },
     {
       "source": ".agents/skills/ai-drama-series-production/assets/templates/00-source-adaptation-brief.md",
@@ -305,7 +305,7 @@
     {
       "source": ".agents/skills/novel-to-ai-drama-adaptation/assets/templates/01-全书改编蓝图.md",
       "output": "references/novel-to-ai-drama-adaptation/assets/templates/01-全书改编蓝图.md",
-      "sha256": "2d65aff7e247b2fb7e3a385d03088dc6df71e25ec56f408129a8e4a3a1402881"
+      "sha256": "4f6ca19e2da510731fa908652676b7ad0f913df9efb72699bda8d0ce5b9fdef1"
     },
     {
       "source": ".agents/skills/novel-to-ai-drama-adaptation/assets/templates/EP-制作剧本.md",

@@ -80,13 +80,7 @@ func SaveDramaBinding(value model.DramaBinding, expected int64) (model.DramaBind
 				return errors.New("输入用途与媒体类型不一致")
 			}
 			if input.Role == "voice" {
-				found := false
-				for _, shot := range clip.Shots {
-					if strings.TrimSpace(shot.Speaker) == input.Speaker && strings.TrimSpace(shot.Dialogue) != "" {
-						found = true
-					}
-				}
-				if !found {
+				if !model.DramaClipDialogueSpeakers(clip.Shots)[input.Speaker] {
 					return errors.New("声音必须绑定本 Clip 实际说话者")
 				}
 			}

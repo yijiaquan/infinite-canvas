@@ -4,9 +4,9 @@ import (
 	"log"
 	"sync"
 
+	"github.com/robfig/cron/v3"
 	"github.com/tigerowo/infinite-canvas/model"
 	"github.com/tigerowo/infinite-canvas/repository"
-	"github.com/robfig/cron/v3"
 )
 
 const defaultPromptSyncCron = "0 0 * * *"

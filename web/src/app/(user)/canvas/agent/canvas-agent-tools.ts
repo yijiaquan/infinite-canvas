@@ -37,6 +37,8 @@ export const CANVAS_AGENT_ACTION_NAMES = [
     "generate_video",
     "upscale_video",
     "generate_audio",
+    "create_audio_excerpt",
+    "find_voice_excerpt",
     "get_media_task_status",
 ] as const;
 
@@ -157,9 +159,9 @@ export const CANVAS_AGENT_TOOLS: CanvasAgentToolDefinition[] = [
     defineTool("create_drama_asset", "创建当前漫剧项目的共享资产定义，不生成媒体。", { title: STRING, kind: DRAMA_ASSET_KIND, parentId: STRING, description: STRING }, ["title", "kind"]),
     defineTool("update_drama_asset", "按版本局部更新当前项目资产定义或采用版本。", { assetId: STRING, expectedRevision: DRAMA_REVISION, title: STRING, parentId: STRING, description: STRING, adoptedVersionId: STRING, defaultVoiceVersionId: STRING, archived: { type: "boolean" } }, ["assetId", "expectedRevision"]),
     defineTool("generate_drama_asset_candidate", "为当前项目资产创建候选媒体节点；按 Agent 自动生成设置决定是否提交，节点会保留资产归属。", { assetId: STRING, kind: { type: "string", enum: ["image", "audio"] }, prompt: STRING, title: STRING, sourceNodeIds: STRING_ARRAY, voice: STRING, instructions: STRING }, ["assetId", "kind", "prompt", "sourceNodeIds"]),
-    defineTool("register_drama_asset_version", "把当前画布真实且已保存的媒体节点登记为资产版本；不能传 storageId 或路径。", { assetId: STRING, nodeId: STRING, note: STRING, expectedRevision: DRAMA_REVISION }, ["assetId", "nodeId", "expectedRevision"]),
+    defineTool("register_drama_asset_version", "把当前画布真实且已保存的媒体节点登记为资产版本；手动上传、分离或裁剪得到的音频节点也可登记，不要求由该资产生成。不能传 storageId、URL 或路径。", { assetId: STRING, nodeId: STRING, note: STRING, expectedRevision: DRAMA_REVISION }, ["assetId", "nodeId", "expectedRevision"]),
     defineTool("get_drama_binding", "读取当前 Clip 指定阶段的版本化资产绑定。", { clipId: STRING, stage: DRAMA_STAGE }, ["clipId", "stage"]),
-    defineTool("update_drama_binding", "按版本完整替换当前 Clip 指定阶段绑定，并同步共享参考节点与连线。首次创建绑定使用 expectedRevision=0。role 只能表示素材用途，不能写 character_identity、scene_geography、style、project_look 等自定义名称。", { clipId: STRING, stage: DRAMA_STAGE, expectedRevision: DRAMA_INITIAL_REVISION, references: DRAMA_BINDING_REFERENCES }, ["clipId", "stage", "expectedRevision", "references"]),
+    defineTool("update_drama_binding", "按版本完整替换当前 Clip 指定阶段绑定，并同步共享参考节点与连线。先读取当前绑定，完整保留未变引用并按 0 开始连续重排 order；Voice 仅可绑定到本 Clip 有非空对白的精确 Speaker，优先使用逐行“角色：台词”标签，未标注的旧数据才回退 Shot speaker。同一双人/多人 Shot 可绑定多个实际 Voice。首次创建绑定使用 expectedRevision=0。role 只能表示素材用途，不能写 character_identity、scene_geography、style、project_look 等自定义名称。", { clipId: STRING, stage: DRAMA_STAGE, expectedRevision: DRAMA_INITIAL_REVISION, references: DRAMA_BINDING_REFERENCES }, ["clipId", "stage", "expectedRevision", "references"]),
     defineTool("prepare_drama_clip_nodes", "幂等准备或安全修复指定 Clip 的分组、故事板、视频节点和标准连线，不移动已有内容。", { clipIds: STRING_ARRAY }, ["clipIds"]),
     defineTool("repair_drama_clip_group_layout", "仅恢复明确 Clip 组的可见边界：不移动节点、不改提示词、参数、素材、绑定或连线；会将遗留参考节点移出分组成员关系。", { clipIds: STRING_ARRAY }, ["clipIds"]),
     defineTool("update_drama_generation_node", "只更新当前 Clip 的故事板或视频节点源提示词与公开参数，并保存正式画布。源提示词使用图片N、视频N、音频N画布令牌，禁止写入仅供预览/提交快照使用的<Picture N>/<Video N>/<Audio N>提供方标签。", { clipId: STRING, nodeId: STRING, stage: DRAMA_STAGE, prompt: STRING, parameters: DRAMA_PARAMETERS }, ["clipId", "nodeId", "stage", "prompt"]),
@@ -277,6 +279,30 @@ export const CANVAS_AGENT_TOOLS: CanvasAgentToolDefinition[] = [
         "创建音频节点和来源连线，并按 Agent 自动生成设置决定是否提交现有音频任务链路。prompt 是实际朗读文本，instructions 是音色/演绎说明；sourceNodeIds 只放真实直接来源，独立生成必须传空数组。",
         { prompt: STRING, title: STRING, sourceNodeIds: STRING_ARRAY, voice: STRING, instructions: STRING },
         ["prompt", "sourceNodeIds"],
+    ),
+    defineTool(
+        "create_audio_excerpt",
+        "从当前画布一个真实视频节点提取主混合音轨，或从视频/音频节点截取指定时间段，创建并上传独立 WAV 候选音频节点。用户要求先分离再裁剪时，先对 video 不传时间调用本工具，再对返回的 audio 节点传时间调用本工具。只以真实媒体读取结果判断音轨，不得依据 videoSupportsAudio 或视频生成配置拒绝。该工具不做人声分离、不生成新声音，也不自动登记或采用 Voice 资产。",
+        {
+            sourceNodeId: STRING,
+            startSeconds: { type: "number", minimum: 0, description: "截取开始时间（秒）。与 endSeconds 同时提供；视频不提供时间时提取完整主音轨。" },
+            endSeconds: { type: "number", exclusiveMinimum: 0, description: "截取结束时间（秒）。与 startSeconds 同时提供，且至少保留 0.5 秒。" },
+            title: STRING,
+            requestId: STRING,
+        },
+        ["sourceNodeId", "requestId"],
+    ),
+    defineTool(
+        "find_voice_excerpt",
+        "分析当前画布中真实视频或音频节点的实际音轨，自动定位一段较干净的连续人声并创建 WAV 候选节点。此工具不依据视频生成配置判断有无音轨，不进行说话人识别，不自动登记或采用 Voice 资产；必须先试听候选。",
+        {
+            sourceNodeId: STRING,
+            targetSeconds: { type: "number", minimum: 0.5, maximum: 12, description: "目标候选时长（秒），默认 4 秒。实际连续人声不足时返回较短但不少于 0.5 秒的候选。" },
+            speaker: { type: "string", description: "候选拟用于的角色名，仅作标注；没有声纹识别时不会据此宣称已确认说话者。" },
+            title: STRING,
+            requestId: STRING,
+        },
+        ["sourceNodeId", "requestId"],
     ),
     defineTool("get_media_task_status", "读取图片、视频或音频节点的生成状态。", { nodeId: STRING }, ["nodeId"]),
 ];
@@ -567,6 +593,34 @@ export function normalizeCanvasAgentAction(name: unknown, args: unknown, id = na
             };
             break;
         }
+        case "create_audio_excerpt": {
+            const hasStart = input.startSeconds !== undefined;
+            const hasEnd = input.endSeconds !== undefined;
+            if (hasStart !== hasEnd) throw new Error("startSeconds 和 endSeconds 必须同时提供");
+            const startSeconds = hasStart ? finiteNumber(input.startSeconds, "startSeconds") : undefined;
+            const endSeconds = hasEnd ? finiteNumber(input.endSeconds, "endSeconds") : undefined;
+            if (startSeconds !== undefined && startSeconds < 0) throw new Error("startSeconds 不能小于 0");
+            if (startSeconds !== undefined && endSeconds !== undefined && endSeconds - startSeconds < 0.5) throw new Error("音频片段至少保留 0.5 秒");
+            normalized = {
+                sourceNodeId: requiredString(input.sourceNodeId, "sourceNodeId"),
+                requestId: requiredString(input.requestId, "requestId"),
+                ...(startSeconds !== undefined ? { startSeconds, endSeconds } : {}),
+                ...(optionalString(input.title) ? { title: optionalString(input.title) } : {}),
+            };
+            break;
+        }
+        case "find_voice_excerpt": {
+            const targetSeconds = input.targetSeconds === undefined ? 4 : finiteNumber(input.targetSeconds, "targetSeconds");
+            if (targetSeconds < 0.5 || targetSeconds > 12) throw new Error("targetSeconds 必须在 0.5 到 12 秒之间");
+            normalized = {
+                sourceNodeId: requiredString(input.sourceNodeId, "sourceNodeId"),
+                requestId: requiredString(input.requestId, "requestId"),
+                targetSeconds,
+                ...(optionalString(input.speaker) ? { speaker: optionalString(input.speaker) } : {}),
+                ...(optionalString(input.title) ? { title: optionalString(input.title) } : {}),
+            };
+            break;
+        }
     }
 
     return { id, name: actionName, arguments: normalized };
@@ -662,6 +716,8 @@ export function canvasAgentActionLabel(action: CanvasAgentAction) {
         generate_video: "正在创建视频节点",
         upscale_video: "正在创建视频高清处理节点",
         generate_audio: "正在创建音频节点",
+        create_audio_excerpt: "正在提取音频片段",
+        find_voice_excerpt: "正在分析人声片段",
         get_media_task_status: "正在读取媒体任务",
     };
     return labels[action.name];
@@ -671,8 +727,13 @@ export function isCanvasAgentMediaAction(action: CanvasAgentAction) {
     return action.name === "generate_image" || action.name === "edit_image" || action.name === "upscale_image" || action.name === "generate_video" || action.name === "upscale_video" || action.name === "generate_audio" || action.name === "generate_drama_asset_candidate" || action.name === "enqueue_drama_run";
 }
 
+function finiteNumber(value: unknown, name: string) {
+    if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(name + " 必须是有限数字");
+    return value;
+}
+
 export function userLikelyRequestedCanvasAction(text: string) {
-    return /(?:创建|新增|插入|修改|更新|删除|连接|连线|分组|整理|生成|生图|执行|拆成|拆分|放到画布|开始做|(?:做|制作|添加|补充|移除|去掉).{0,8}(?:视频|音频|配音|旁白))/i.test(text);
+    return /(?:创建|新增|插入|修改|更新|删除|连接|连线|分组|整理|生成|生图|执行|提取|截取|裁剪|分离|拆成|拆分|定位|找到|放到画布|开始做|(?:做|制作|添加|补充|移除|去掉).{0,8}(?:视频|音频|配音|旁白|声音|人声|音色))/i.test(text);
 }
 
 function extractJsonObject(content: string) {
