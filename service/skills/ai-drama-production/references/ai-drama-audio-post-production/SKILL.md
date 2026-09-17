@@ -1,6 +1,6 @@
 ---
 name: ai-drama-audio-post-production
-description: Create and manage recurring voices, provider-native dialogue, TTS or recording, ambience, Foley, SFX, music, lip sync, subtitles, Bcut audio tracks, mix, and audio QA for AI drama. Use after the script is accepted and whenever sound or post-production work is required.
+description: Prepare recurring Voice references and provider-native dialogue requirements after script acceptance, then repair or produce dialogue, ambience, Foley, SFX, music, lip sync, subtitles, Bcut audio tracks, mix, and audio QA after video generation. Pair with H3 before video only when actual Speaker, Voice, native dialogue, or lip-sync inputs are required.
 ---
 
 # AI Drama Audio and Post Production

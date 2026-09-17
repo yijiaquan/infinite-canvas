@@ -35,8 +35,8 @@ Project 包含 id、title、sourceType（novel/script，默认 script）、sourc
 
 路径以 `/api/v1/drama/projects/:id` 为基础。所有修改需要登录；版本不匹配拒绝覆盖。
 
-- GET/POST `/assets`，POST `/assets/:assetId`，POST `/assets/:assetId/versions`：档案、固定媒体版本、显式采用。上传经 `/api/v1/drama/media` 注册现有存储；保留原文件，不把浏览器临时URL作为正式采用。人物的 `defaultVoiceVersionId` 必须是同项目音色的固定音频版本。
-- GET/POST `/episodes/:episodeId/clips/:clipId/bindings/:stage`：stage是storyboard/video，写入`{expectedRevision,references}`，每项包含assetId/versionId/role/order/speaker。语音仅用于实际说话者，顺序必须连续；不因资产采用新版本而替换原引用。
+- GET/POST `/assets`，POST `/assets/:assetId`，POST `/assets/:assetId/versions`：档案、固定媒体版本、显式采用。上传经 `/api/v1/drama/media` 注册现有存储；保留原文件，不把浏览器临时URL作为正式采用。人物的 `defaultVoiceVersionId` 必须是同项目音色的固定音频版本。`kind=expression` 为人物表情板，`parentId` 必须指向同项目 `character`；表情板及其用于视频的单状态子 `reference` 都必须使用图片媒体。
+- GET/POST `/episodes/:episodeId/clips/:clipId/bindings/:stage`：stage是storyboard/video，写入`{expectedRevision,references}`，每项包含assetId/versionId/role/order/speaker。语音仅用于实际说话者，顺序必须连续；`role=expression` 在 storyboard 只接受完整 `expression`，在 video 只接受父级为 `expression` 的单状态 `reference`，两者不能借其他 role 绕过；不因资产采用新版本而替换原引用。
 - GET/POST `/episodes/:episodeId/clips/:clipId/runs`：列出历史／按requestId入队。请求包含nodeId/kind/model/channelId/prompt/parameters/references。正式节点归属须与数据库分集画布一致。
 - POST同路径`/preview`：校验与编译，不创建运行或提交生成，返回snapshot/credits/kind。inputMapping列出实际H3标签、顺序和媒体来源；视频内嵌音轨经ffprobe检查，不能猜测Audio编号。
 - POST同路径`/:runId/cancel`：仅等待提交队列可以取消；尚未扣费。提交后不会退款，不通过全局ComfyUI中断误伤其他任务。

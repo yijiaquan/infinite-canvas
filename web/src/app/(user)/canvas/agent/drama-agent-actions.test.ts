@@ -138,6 +138,17 @@ test("formal drama tools reject raw storage, duplicate order and hidden generati
             { assetId: "b", versionId: "v2", role: "reference", order: 1, speaker: "" },
         ],
     );
+    assert.equal(normalizeCanvasAgentAction("create_drama_asset", { title: "祁野表情板", kind: "expression", parentId: "character" }).arguments.kind, "expression");
+    assert.throws(() => normalizeCanvasAgentAction("create_drama_asset", { title: "无归属表情板", kind: "expression" }));
+    assert.equal(
+        (normalizeCanvasAgentAction("update_drama_binding", {
+            clipId: "clip",
+            stage: "storyboard",
+            expectedRevision: 0,
+            references: [{ assetId: "expression", versionId: "board", role: "expression", order: 0, speaker: "" }],
+        }).arguments.references as Array<{ role: string }>)[0].role,
+        "expression",
+    );
     assert.throws(() => normalizeCanvasAgentAction("update_drama_generation_node", { clipId: "clip", nodeId: "node", stage: "video", prompt: "x", parameters: { hidden_node: true } }));
     assert.throws(() => normalizeCanvasAgentAction("update_drama_generation_node", { clipId: "clip", nodeId: "node", stage: "video", prompt: "x", parameters: { steps: true } }));
     assert.throws(() => normalizeCanvasAgentAction("update_drama_generation_node", { clipId: "clip", nodeId: "node", stage: "video", prompt: "x", parameters: { resolution_name: "4k" } }));
@@ -378,11 +389,15 @@ test("voice binding accepts multiple labelled speakers in one Shot", async () =>
     const catalog = {
         assets: [
             { id: "visual", projectId: "project", title: "Visual", kind: "character" as const, parentId: "", description: "", adoptedVersionId: "", revision: 1, archived: false },
+            { id: "expression", projectId: "project", title: "Expression", kind: "expression" as const, parentId: "visual", description: "", adoptedVersionId: "expression-v1", revision: 1, archived: false },
+            { id: "expression-state", projectId: "project", title: "Expression state", kind: "reference" as const, parentId: "expression", description: "", adoptedVersionId: "expression-state-v1", revision: 1, archived: false },
             { id: "voice", projectId: "project", title: "Voice", kind: "voice" as const, parentId: "", description: "", adoptedVersionId: "", revision: 1, archived: false },
 			{ id: "voice-bob", projectId: "project", title: "Voice Bob", kind: "voice" as const, parentId: "", description: "", adoptedVersionId: "", revision: 1, archived: false },
         ],
         versions: [
             { id: "visual-v1", assetId: "visual", storageId: "visual-storage", note: "", createdAt: "" },
+            { id: "expression-v1", assetId: "expression", storageId: "expression-storage", note: "", createdAt: "" },
+            { id: "expression-state-v1", assetId: "expression-state", storageId: "expression-state-storage", note: "", createdAt: "" },
             { id: "voice-v1", assetId: "voice", storageId: "voice-storage", note: "", createdAt: "" },
 			{ id: "voice-bob-v1", assetId: "voice-bob", storageId: "voice-bob-storage", note: "", createdAt: "" },
         ],
@@ -398,6 +413,13 @@ test("voice binding accepts multiple labelled speakers in one Shot", async () =>
     };
     const context = { token: "token", projectId: "project", episodeId: "episode", canvasId: "canvas", isCurrent: () => true, onChanged: () => undefined, readAssets: async () => catalog, applyBinding: async () => undefined };
     try {
+        const invalidExpression = await executeDramaAgentAction(
+            normalizeCanvasAgentAction("update_drama_binding", { clipId: "clip", stage: "video", expectedRevision: 0, references: [{ assetId: "expression", versionId: "expression-v1", role: "expression", order: 0, speaker: "" }] }),
+            context,
+        );
+        assert.equal(invalidExpression?.ok, false);
+        assert.match(invalidExpression?.message || "", /干净单状态参考/);
+        assert.equal(posts.length, 0);
         const invalid = await executeDramaAgentAction(normalizeCanvasAgentAction("update_drama_binding", { clipId: "clip", stage: "video", expectedRevision: 0, references: [...references.slice(0, 1), { ...references[1], speaker: "Qiye" }] }), context);
         assert.equal(invalid?.ok, false);
         assert.match(invalid?.message || "", /Alice.*Bob/);

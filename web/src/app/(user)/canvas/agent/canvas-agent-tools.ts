@@ -86,8 +86,8 @@ const ACTION_NAME_SET = new Set<string>(CANVAS_AGENT_ACTION_NAMES);
 const DRAMA_REVISION = { type: "integer", minimum: 1 };
 const DRAMA_INITIAL_REVISION = { type: "integer", minimum: 0 };
 const DRAMA_STAGE = { type: "string", enum: ["storyboard", "video"] };
-const DRAMA_ASSET_KIND = { type: "string", enum: ["character", "scene", "prop", "voice", "reference"] };
-const DRAMA_BINDING_ROLE = { type: "string", enum: ["character", "scene", "prop", "reference", "voice", "video_reference"] };
+const DRAMA_ASSET_KIND = { type: "string", enum: ["character", "expression", "scene", "prop", "voice", "reference"] };
+const DRAMA_BINDING_ROLE = { type: "string", enum: ["character", "expression", "scene", "prop", "reference", "voice", "video_reference"] };
 const DRAMA_PARAMETERS = {
     type: "object",
     properties: {
@@ -103,7 +103,7 @@ const DRAMA_GENERATION_DEFAULTS = { type: "object", properties: { image: DRAMA_P
 const DRAMA_BINDING_REFERENCES = {
     type: "array",
     maxItems: 16,
-    description: "完整绑定列表。order 必须从 0 开始连续；角色名、场景名、道具名和 Look 名由 assetId/versionId 表达，不得写入 role。故事板仅使用 character、scene、prop、reference。",
+    description: "完整绑定列表。order 必须从 0 开始连续；角色名、场景名、道具名和 Look 名由 assetId/versionId 表达，不得写入 role。expression 在故事板阶段使用完整表情板，在视频阶段只能使用该表情板下属的干净单状态 reference。",
     items: {
         type: "object",
         properties: {
@@ -156,12 +156,12 @@ export const CANVAS_AGENT_TOOLS: CanvasAgentToolDefinition[] = [
     defineTool("reorder_drama_clips", "按完整 Clip ID 顺序重排当前集制作中 Clip；服务端逐项校验当前版本。", { clipIds: STRING_ARRAY }, ["clipIds"]),
     defineTool("archive_drama_clip", "按版本把当前集 Clip 移入回收站。", { clipId: STRING, expectedRevision: DRAMA_REVISION }, ["clipId", "expectedRevision"]),
     defineTool("restore_drama_clip", "按版本从回收站恢复当前集 Clip。", { clipId: STRING, expectedRevision: DRAMA_REVISION }, ["clipId", "expectedRevision"]),
-    defineTool("create_drama_asset", "创建当前漫剧项目的共享资产定义，不生成媒体。", { title: STRING, kind: DRAMA_ASSET_KIND, parentId: STRING, description: STRING }, ["title", "kind"]),
+    defineTool("create_drama_asset", "创建当前漫剧项目的共享资产定义，不生成媒体。expression 必须以对应 character/Look 为 parentId；用于视频的单状态表情参考使用 reference，并以对应 expression 为 parentId。", { title: STRING, kind: DRAMA_ASSET_KIND, parentId: STRING, description: STRING }, ["title", "kind"]),
     defineTool("update_drama_asset", "按版本局部更新当前项目资产定义或采用版本。", { assetId: STRING, expectedRevision: DRAMA_REVISION, title: STRING, parentId: STRING, description: STRING, adoptedVersionId: STRING, defaultVoiceVersionId: STRING, archived: { type: "boolean" } }, ["assetId", "expectedRevision"]),
     defineTool("generate_drama_asset_candidate", "为当前项目资产创建候选媒体节点；按 Agent 自动生成设置决定是否提交，节点会保留资产归属。", { assetId: STRING, kind: { type: "string", enum: ["image", "audio"] }, prompt: STRING, title: STRING, sourceNodeIds: STRING_ARRAY, voice: STRING, instructions: STRING }, ["assetId", "kind", "prompt", "sourceNodeIds"]),
     defineTool("register_drama_asset_version", "把当前画布真实且已保存的媒体节点登记为资产版本；手动上传、分离或裁剪得到的音频节点也可登记，不要求由该资产生成。不能传 storageId、URL 或路径。", { assetId: STRING, nodeId: STRING, note: STRING, expectedRevision: DRAMA_REVISION }, ["assetId", "nodeId", "expectedRevision"]),
     defineTool("get_drama_binding", "读取当前 Clip 指定阶段的版本化资产绑定。", { clipId: STRING, stage: DRAMA_STAGE }, ["clipId", "stage"]),
-    defineTool("update_drama_binding", "按版本完整替换当前 Clip 指定阶段绑定，并同步共享参考节点与连线。先读取当前绑定，完整保留未变引用并按 0 开始连续重排 order；Voice 仅可绑定到本 Clip 有非空对白的精确 Speaker，优先使用逐行“角色：台词”标签，未标注的旧数据才回退 Shot speaker。同一双人/多人 Shot 可绑定多个实际 Voice。首次创建绑定使用 expectedRevision=0。role 只能表示素材用途，不能写 character_identity、scene_geography、style、project_look 等自定义名称。", { clipId: STRING, stage: DRAMA_STAGE, expectedRevision: DRAMA_INITIAL_REVISION, references: DRAMA_BINDING_REFERENCES }, ["clipId", "stage", "expectedRevision", "references"]),
+    defineTool("update_drama_binding", "按版本完整替换当前 Clip 指定阶段绑定，并同步共享参考节点与连线。先读取当前绑定，完整保留未变引用并按 0 开始连续重排 order；同一 Voice 资产版本在画布中只保留一个全局音频节点，每条 Clip 连线独立保存 Speaker、顺序和版本。Voice 仅可绑定到本 Clip 有非空对白的精确 Speaker，优先使用逐行“角色：台词”标签，未标注的旧数据才回退 Shot speaker。同一双人/多人 Shot 可绑定多个实际 Voice。首次创建绑定使用 expectedRevision=0。role 只能表示素材用途，不能写 character_identity、scene_geography、style、project_look 等自定义名称。", { clipId: STRING, stage: DRAMA_STAGE, expectedRevision: DRAMA_INITIAL_REVISION, references: DRAMA_BINDING_REFERENCES }, ["clipId", "stage", "expectedRevision", "references"]),
     defineTool("prepare_drama_clip_nodes", "幂等准备或安全修复指定 Clip 的分组、故事板、视频节点和标准连线，不移动已有内容。", { clipIds: STRING_ARRAY }, ["clipIds"]),
     defineTool("repair_drama_clip_group_layout", "仅恢复明确 Clip 组的可见边界：不移动节点、不改提示词、参数、素材、绑定或连线；会将遗留参考节点移出分组成员关系。", { clipIds: STRING_ARRAY }, ["clipIds"]),
     defineTool("update_drama_generation_node", "只更新当前 Clip 的故事板或视频节点源提示词与公开参数，并保存正式画布。源提示词使用图片N、视频N、音频N画布令牌，禁止写入仅供预览/提交快照使用的<Picture N>/<Video N>/<Audio N>提供方标签。", { clipId: STRING, nodeId: STRING, stage: DRAMA_STAGE, prompt: STRING, parameters: DRAMA_PARAMETERS }, ["clipId", "nodeId", "stage", "prompt"]),
@@ -362,12 +362,15 @@ export function normalizeCanvasAgentAction(name: unknown, args: unknown, id = na
         case "restore_drama_clip":
             normalized = { clipId: requiredString(input.clipId, "clipId"), expectedRevision: boundedInteger(input.expectedRevision, 1, Number.MAX_SAFE_INTEGER) };
             break;
-        case "create_drama_asset":
+        case "create_drama_asset": {
+            const kind = enumString(input.kind, "kind", ["character", "expression", "scene", "prop", "voice", "reference"]);
+            const parentId = optionalString(input.parentId);
+            if (kind === "expression" && !parentId) throw new Error("expression 资产必须指定所属 character/Look 的 parentId");
             normalized = {
-                title: requiredString(input.title, "title"), kind: enumString(input.kind, "kind", ["character", "scene", "prop", "voice", "reference"]),
-                parentId: optionalString(input.parentId), description: typeof input.description === "string" ? input.description : "",
+                title: requiredString(input.title, "title"), kind, parentId, description: typeof input.description === "string" ? input.description : "",
             };
             break;
+        }
         case "update_drama_asset": {
             normalized = { assetId: requiredString(input.assetId, "assetId"), expectedRevision: boundedInteger(input.expectedRevision, 1, Number.MAX_SAFE_INTEGER) };
             for (const key of ["title", "parentId", "description", "adoptedVersionId", "defaultVoiceVersionId"] as const) if (input[key] !== undefined) {
@@ -404,7 +407,7 @@ export function normalizeCanvasAgentAction(name: unknown, args: unknown, id = na
                 const order = boundedInteger(item.order, 0, Number.MAX_SAFE_INTEGER);
                 if (order === undefined || seenOrders.has(order)) throw new Error("绑定顺序无效或重复");
                 seenOrders.add(order);
-                const role = enumString(item.role, "role", ["character", "scene", "prop", "reference", "voice", "video_reference"]);
+                const role = enumString(item.role, "role", ["character", "expression", "scene", "prop", "reference", "voice", "video_reference"]);
                 const speaker = typeof item.speaker === "string" ? item.speaker : "";
                 if (role === "voice" ? !speaker.trim() || speaker !== speaker.trim() : Boolean(speaker)) {
                     throw new Error(role === "voice" ? "声音绑定必须填写无首尾空格的实际说话者" : "只有 voice 职责可以填写 speaker");
@@ -413,7 +416,7 @@ export function normalizeCanvasAgentAction(name: unknown, args: unknown, id = na
             }).sort((a, b) => a.order - b.order);
             if (references.some((reference, index) => reference.order !== index)) throw new Error("绑定 order 必须从 0 开始连续编号");
             if (input.stage === "storyboard" && references.some((reference) => reference.role === "voice" || reference.role === "video_reference")) {
-                throw new Error("故事板绑定只接受 character、scene、prop、reference 图片职责");
+                throw new Error("故事板绑定只接受 character、expression、scene、prop、reference 图片职责");
             }
             normalized = { clipId: requiredString(input.clipId, "clipId"), stage: enumString(input.stage, "stage", ["storyboard", "video"]), expectedRevision: boundedInteger(input.expectedRevision, 0, Number.MAX_SAFE_INTEGER), references };
             break;

@@ -66,7 +66,7 @@ func dramaRunTick() {
 		go func(run model.DramaRun) { defer dramaRunActive.Delete(run.ID); executeDramaRun(run) }(run)
 	}
 }
-func dramaRunState(run model.DramaRun, status, message string, extra map[string]any) {
+func dramaRunState(run model.DramaRun, status, message string, extra map[string]any) bool {
 	if extra == nil {
 		extra = map[string]any{}
 	}
@@ -74,7 +74,9 @@ func dramaRunState(run model.DramaRun, status, message string, extra map[string]
 	extra["error"] = message
 	if _, err := repository.ChangeDramaRun(run.ID, []string{run.Status}, extra); err != nil {
 		log.Printf("drama run state write failed id=%s: %v", run.ID, err)
+		return false
 	}
+	return true
 }
 func executeDramaRun(run model.DramaRun) {
 	u, found, err := repository.GetUserByID(run.UserID)
@@ -287,5 +289,12 @@ func saveDramaRunResponse(ctx context.Context, run model.DramaRun, channel model
 			return
 		}
 	}
-	dramaRunState(run, "completed", "", map[string]any{"outputs": service.EncodeDramaRunOutputs(outputs)})
+	if !dramaRunState(run, "completed", "", map[string]any{"outputs": service.EncodeDramaRunOutputs(outputs)}) {
+		return
+	}
+	run.Status = "completed"
+	run.Outputs = outputs
+	if _, err := service.AutoAdoptLatestDramaOutput(ctx, run); err != nil {
+		log.Printf("drama output auto-adopt failed id=%s kind=%s: %v", run.ID, run.Kind, err)
+	}
 }

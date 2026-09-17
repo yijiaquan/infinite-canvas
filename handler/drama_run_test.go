@@ -219,13 +219,14 @@ func TestDramaRunLifecycle(t *testing.T) {
 			t.Fatal("episode history loaded internal request payloads")
 		}
 	}
-	// Unknown submissions retain their concurrency slot until explicitly reconciled.
+	// An unknown submission stays available for manual reconciliation, but does not
+	// block a different queued request forever when ComfyUI no longer has the task.
 	if claimed, err := repository.ClaimDramaRun(queued.ID); err != nil || !claimed {
 		t.Fatalf("second slot: %v %v", claimed, err)
 	}
 	blocked := enqueue("blocked", "board")
-	if claimed, err := repository.ClaimDramaRun(blocked.ID); err != nil || claimed {
-		t.Fatalf("concurrency limit exceeded: %v %v", claimed, err)
+	if claimed, err := repository.ClaimDramaRun(blocked.ID); err != nil || !claimed {
+		t.Fatalf("unknown run blocked a fresh request: %v %v", claimed, err)
 	}
 	if _, err = service.CancelCurrentDramaRun(ctx, "project", "episode", "clip", interrupted.ID); err == nil {
 		t.Fatal("submitted unknown task cancellation accepted")

@@ -1,6 +1,6 @@
 ---
 name: ai-drama-visual-assets
-description: Create production-ready AI-drama identity boards, multi-view scene boards and views, prop references, complete variable-duration adaptive-panel director storyboards, visual continuity, and targeted repairs. Use before AI-video generation whenever recurring identity, geography, props, blocking, eyeline, camera, or composition must remain stable.
+description: Create production-ready AI-drama identity boards, character expression boards and clean single-state references, multi-view scene boards and views, prop references, complete variable-duration adaptive-panel director storyboards, visual continuity, and targeted repairs. Use before AI-video generation whenever recurring identity, performance, geography, props, blocking, eyeline, camera, or composition must remain stable.
 ---
 
 # AI Drama Visual Assets
@@ -12,7 +12,7 @@ description: Create production-ready AI-drama identity boards, multi-view scene 
 源提示词只保存语义正文和结构化引用/绑定，不手写提供方媒体编号。下文及专业参考中的 `<Picture N>` / `<Video N>` / `<Audio N>` 是编译后格式的审核示例，仅由预览/提交编译器输出；UI 使用缩略图及图片N/视频N/音频N令牌。旧模板的文件路径/current 标记不构成 Canvas 采用记录，采用必须对应真实持久媒体版本与 QA。
 
 
-本 Skill 负责将已确认剧本转为可用视觉资产和完整全彩导演板。镜头数与时长按剧情确定；导演板采用页眉、大幅主镜头与底部参考/简表，具体模板读取 [自适应导演板](../ai-media-prompt-compiler/references/director-panel-prompt-method.md)。制作依赖顺序保持不变。
+本 Skill 负责将已确认剧本转为可用视觉资产和完整全彩导演板。镜头数与时长按剧情确定；导演板采用页眉、大幅主镜头与底部参考/简表，具体模板读取 [自适应导演板](../ai-media-prompt-compiler/references/director-panel-prompt-method.md)。故事板是纯视觉镜头规划资产，不制作角色对白信息：精确台词、转述台词、说话者、发言阶段、对白引用 ID、字幕和对白气泡都不得进入故事板图片、板面文字或静态图片生成提示。对白只在上游用于计算时长和表演容量，并继续保存在剧本/Shot 合同中，供后续 Video 与 Audio Skills 使用。制作依赖顺序保持不变。
 
 严格遵循 `确认剧本 → 基础人物/场景/道具 current → 依赖 View/状态 current → 完整导演板 current → 视频`。可以并行生成互不依赖的基础资产，但不能在必要资产尚未通过真实图片 QA 时生成正式导演板，也不能把带有已知缺陷的导演板交给 Video Skill。这里的顺序是输入依赖，不是新增审批流程。
 
@@ -21,7 +21,7 @@ description: Create production-ready AI-drama identity boards, multi-view scene 
 读取当前剧本和制作拆解，整理：
 
 - Character + Look；
-- 按需的 Character Performance Reference；
+- 按需的 Character Expression Board 与关键近景单状态参考；
 - Location + View；
 - continuity-critical Prop + State；
 - Scene/Beat/H3 Clip/分镜 Panel；
@@ -32,7 +32,7 @@ description: Create production-ready AI-drama identity boards, multi-view scene 
 
 缺少某个普通细节时采用合理设计；只有会改变角色、世界或关键剧情的选择才询问主人。
 
-制作拆解阶段读取 `references/asset-variant-and-continuity.md` 判断 `reuse / new_variant / new_asset / shot_state`。不为瞬时表情、姿势或机位建立资产；需要稳定门内/门外、正反打另一侧或独立空间地理时，先建立实际的 `Location + View`。
+制作拆解阶段读取 `references/asset-variant-and-continuity.md` 判断 `reuse / new_variant / new_asset / shot_state`。普通瞬时表情、姿势或机位仍留在 Shot；只有重复近景、微表情承载信息、关键情绪转折、审讯/悬疑/亲密场面或已知表情僵化风险才建立人物表情板，关键近景按需建立其单状态子参考。需要稳定门内/门外、正反打另一侧或独立空间地理时，先建立实际的 `Location + View`。
 
 白模预演合同只约束该 Clip 的镜头覆盖、空间关系、人物调度和动作节拍；它不是静态视觉资产、静态图片批次或 H3 Picture。主人选择白模预演时，Visual 先交出 current 场景主图或所需 `Location + View`，供 `blender-whitebox-previs` 搭建同一地点的代理空间；反打、门内/门外必须交出对应的 View。通过 QA 的同 Clip Blender 预演视频可作为 H3 `<Video 1>` 参考，补充相机、调度与动作路径；正式身份、地理、道具、材质和光线仍由完整分镜故事板及 current 视觉资产控制。
 
@@ -40,7 +40,7 @@ description: Create production-ready AI-drama identity boards, multi-view scene 
 
 正常生产遵循 [Infinite Canvas 生产契约](../ai-drama-studio-workflow/references/infinite-canvas-production-contract.md)：先 `get_canvas_summary` 并读取项目资产与采用版本，通过真实画布节点生成或导入候选，登记不可变版本。用 assetId/versionId 与有序用途绑定实际参考，预览本次图像输入再完成提示词；不使用旧文本提及解析器、扫描索引或猜测 ID。
 
-Visual Skill 只定义身份板、场景、道具或完整分镜故事板的业务目的、真实参考、所需状态与 QA 条件。Prompt Skill 为每个静态请求写唯一语义 brief 和最终图片提示词；Visual 直接执行该提示词，不另写第二版语义。多个真实静态参考按 Prompt Skill 的 [static-image-reference-batch.md](../ai-media-prompt-compiler/references/static-image-reference-batch.md) 组成有序 IMAGE 批次，保持图片编号、控制域和禁止越权域一致；只有最终分镜故事板本身是有明确业务目的的多格输出，普通参考仍不做拼贴。
+Visual Skill 只定义身份板、人物表情板及其单状态子参考、场景、道具或完整分镜故事板的业务目的、真实参考、所需状态与 QA 条件。Prompt Skill 为每个静态请求写唯一语义 brief 和最终图片提示词；Visual 直接执行该提示词，不另写第二版语义。多个真实静态参考按 Prompt Skill 的 [static-image-reference-batch.md](../ai-media-prompt-compiler/references/static-image-reference-batch.md) 组成有序 IMAGE 批次，保持图片编号、控制域和禁止越权域一致；只有人物表情板和最终分镜故事板是有明确业务目的的多格输出，单状态参考与其他普通参考不做拼贴。
 
 制作身份板、场景板、道具板、项目母色板或完整导演故事板时，读取 [视觉资产案例库](references/visual-example-library.md)。对应案例已经入库时，默认先看案例理解板式与验收下限，不把案例自动塞入生成请求。只有模型连续无法理解目标板式时，才将案例作为最后一张“仅布局参考”加入静态批次；它不得控制新项目人物、场景、道具、综合色彩、文字或剧情，也不得进入项目资产索引或 H3。
 
@@ -48,11 +48,11 @@ Visual Skill 只定义身份板、场景、道具或完整分镜故事板的业�
 
 1. 读取 Series Bible 或内容简报中的 `Look route`。若为 `project_look_board`，必须在第一张正式身份板、场景、道具或分镜导演板之前，按 [Look / Color Continuity](../ai-media-prompt-compiler/references/look-color-continuity.md) 一次生成并采用一张 `LOOK-PROJECT-*` Global Project Palette；若为 `text_only`，则只继承文字 Project Look。全局母色板由文字 Project Look 和可用的 2–4 张代表性 current Scene Master 提炼；尚无 Scene Master 时使用已确认的主要场景族、时间/天气与有动机光源完成首版。画面只含三条横向纯色色带：全局基础/黑位与中性锚点、重复环境/光线色族、角色/道具/叙事强调色。只有特殊 `hero_recurring` 场景具有跨多个 Shot/Clip 复用的独立色彩家族时，才以母色板和该地点已通过 QA 的 current Scene Master 派生一个 `LOOK-SCENE-<LOCATION>-<STATE>` Scene Palette；它必须保留母色板核心锚点，只局部替换或增加有来源的环境与光线颜色。两者都使用 `reference_frame`，不直接作为额外 H3 图片输入。
    - 已经在制作中的老项目不因此删除或批量重做已采用资产。旧式复杂 LookDev Board 保留为历史版本；继续制作时为同一 `LOOK-PROJECT-*` 采用新的简洁色卡版本，之后的新资产和新整板继承它。只有真实画面 QA 证明旧资产或旧整板已经漂移时，才做定向返修。
-2. 独立基础资产：主要人物身份板、重复场景的完整多视角场景板及干净 Scene Master、关键道具；主要角色确有重复近景、细腻情绪弧或已出现表情僵化时，再按需制作独立人物表演板。
+2. 独立基础资产：主要人物身份板、重复场景的完整多视角场景板及干净 Scene Master、关键道具；主要角色出现重复近景、微表情承载信息、关键情绪转折、审讯/悬疑/亲密场面或已知表情僵化风险时，按 `Character + Look` 制作独立人物表情板。
    - 场景投入按 Series 已选择的 `hero_recurring / standard / transient` 执行：`hero_recurring` 默认建立一张完整场景板；`standard` 只有存在多个生产方向、门内外、正反打、复杂走位或后续重复覆盖时建立；`transient` 默认只做当前 Scene Master / View。不要为一次性单侧场景批量制作未使用角度。
 3. 依赖资产：新 Look、场景角度、道具状态。主人选择白模预演时，先将本阶段 current 场景主图/所需 `Location + View` 与关键道具交给 Blender 搭建；完成空间和相机预演后再继续本 Clip 的完整分镜故事板。
-4. 每个已规划 Clip 一次生成一张完整全彩导演故事板，实际 N 镜与时间范围对应当前 Shot 表，版面按可读性设计。真实绑定 current 身份、场景、关键道具与唯一最具体的 Palette；所选 Blender 预演只提供同 Clip 的调度与摄影事实。
-5. 准备该完整故事板、实际出镜人物的 current 完整身份板、当前 Location 的 current 完整场景板、实际关键道具的 current 完整道具板和实际 Speaker Voice，供 H3 Ref2VA 引用。故事板作为 `<Picture 1>`；后续图片按主角身份板、其他出镜身份板、场景板、关键道具板排序。不为 H3 默认另生单视角人物图、单角度场景图或干净道具裁图。相邻 Clips 先完成两张整板 末格/下一板首格 的交接设计和定向返修；只有真实 QA 仍无法约束复杂关系时，才生成一张单一干净彩色关系锚点并限定适用 Panel/Shot。
+4. 每个已规划 Clip 一次生成一张完整全彩导演故事板，实际 N 镜与时间范围对应当前 Shot 表，版面按可读性设计。真实绑定 current 身份、所需完整人物表情板、场景、关键道具与唯一最具体的 Palette；完整表情板由分镜吸收目标状态，不进入最终板式。静态制板请求只投影视觉动作、构图、表演结果、状态交接和必要的非语言环境/动作声，不传入任何角色对白信息。所选 Blender 预演只提供同 Clip 的调度与摄影事实。
+5. 准备该完整故事板、实际出镜人物的 current 完整身份板、关键近景所需的 current 单状态表情参考、当前 Location 的 current 完整场景板、实际关键道具的 current 完整道具板和实际 Speaker Voice，供 H3 Ref2VA 引用。故事板作为 `<Picture 1>`；后续图片按主角身份板、其他出镜身份板、单状态表情参考、场景板、关键道具板与其他必要参考排序。完整宫格表情板禁止直接进入 H3；九图不足时保留导演板、身份板和场景板，表情参考只有承载关键剧情信息时才优先于次要道具或一般参考。不为 H3 默认另生单视角人物图、单角度场景图或干净道具裁图。相邻 Clips 先完成两张整板 末格/下一板首格 的交接设计和定向返修；只有真实 QA 仍无法约束复杂关系时，才生成一张单一干净彩色关系锚点并限定适用 Panel/Shot。
 
 可并行生成互不依赖的资产；不要等另一项目或无关资产完成。
 
@@ -61,7 +61,7 @@ Visual Skill 只定义身份板、场景、道具或完整分镜故事板的业�
 项目入口建立数据库项目/分集后，Visual 使用项目资产对象；待制作项可以尚无版本。完整导演板属于 Clip 节点及其候选，复用时通过正常注册能力引用既有持久媒体，不复制一套文件台账。
 
 - 原始媒体使用既有持久存储；精确提示词、实际输入和结果归属在任务快照中，历史技术证据保持不动。
-- 真实看图通过后才采用对应资产版本或 Clip 输出。完整场景板、主视角、派生 View、导演板及配色参考保持各自专业职责，使用支持的资产类型和描述表达，不发明 API 枚举。请求成功、文件存在或任务完成都不代表通过。
+- 真实看图通过后才采用对应资产版本或 Clip 输出。人物表情板使用 `kind: "expression"`，`parentId` 指向对应 Character 或 Character Look；可供视频使用的干净单状态图片使用 `kind: "reference"`，`parentId` 指向来源表情板。完整场景板、主视角、派生 View、导演板及配色参考保持各自专业职责。请求成功、文件存在或任务完成都不代表通过。
 - 同一资产返修创建新 versionId，旧版本不删除；当前采用由数据库明确指向。场景主图与每个可复用 View 使用独立资产对象，通过父级或描述关联同一 Location；返回的数据库 ID 不从语义名称推算。
 - 采用新版本不静默替换 Clip 旧绑定；通过正常输入预览显式更新，不增加平行任务包或逐图审批。
 
@@ -84,9 +84,19 @@ Visual Skill 只定义身份板、场景、道具或完整分镜故事板的业�
 
 如服装、年龄、妆发、伤势或变形发生持续性变化，创建一个新的 Look 和一张新的完整身份板。仅缺少裁图时，从原板提取，不重做身份。
 
-身份板只负责“这个人是谁”，其板内中性姿势、视线和表情不得锁定后续 Shot。重复主角先在制作拆解中建立文字角色表演语言；有人物情绪推进的 Clip 再建立非单调表演曲线。主要角色需要稳定微表情语言时，按 [人物表演板方法](../ai-media-prompt-compiler/references/character-performance-board-method.md) 一次生成一张独立表演板，供分镜导演板选择表演状态；完整表演板本身不直接进入 H3，也不为每个 Shot 派生表情裁图。只有真实视频 QA 反复证明某个近景表演无法从整板继承时，才允许一个限定当前 Clip/Shot 的干净单状态参考。普通角色和简单远景不强制制作。
+身份板只负责“这个人是谁”，其板内中性姿势、视线和表情不得锁定后续 Shot。重复主角先在制作拆解中建立文字角色表演语言；有人物情绪推进的 Clip 再建立非单调表演曲线。主要角色需要稳定微表情语言时，按 [人物表情板方法](../ai-media-prompt-compiler/references/character-performance-board-method.md) 一次生成一张独立表情板，供分镜导演板选择表演状态；完整表情板本身不直接进入 H3。关键近景、特写或大特写若在制作拆解中已识别为高风险，可在首次视频生成前准备一个限定当前 Clip/Shot 的干净单状态子参考，不必等待视频失败；普通角色和简单远景不强制制作。
 
 角色进入 H3 视频前，默认不另生成、裁取或采用单视角人物图。H3 直接使用已经通过 QA 的完整身份板；提示词明确只继承身份、比例、服装与固定配饰，不继承白底、多视图排版、中性姿态或表情。若真实媒体 QA 出现人物身份漂移，先核对身份板真实绑定和职责，再修正受影响导演板或提示词并重拍受影响 Clip。历史项目中已有的 `character_reference` 可保留以维持旧素材索引，但不自动续用、不新建，也不占用正常 H3 图片位。
+
+## Character Expression Board
+
+每个需要表情板的 `Character + Look` 建立一个正式 `expression` 资产，父级指向对应 Character 或具体 Character Look；Look、年龄阶段、妆容或伤势实质变化时建立对应新板，不能让新 Look 覆盖旧 Clip 已冻结的版本。一次请求生成一张完整人物表情板，选择本项目实际需要的 5–8 个稳定状态，不机械套用通用情绪清单。
+
+- 版面以大尺寸脸部/头肩微表情为主，确保眼球焦点、上下眼睑、眉间/眉峰、嘴唇、下颌和面颊有足够像素；同时保留肩颈、呼吸、姿态、手臂/躯干和重心的对应反应，不把表情板做成只有五官的表情包。
+- 每个状态具有稳定 ID，并在制作拆解中记录目标 Panel/Shot、同一角色内部的相对强度、可见触发和结束变化。图片提示词把状态展开为可见肌肉、呼吸与身体行为，不能只写情绪名称或百分比。
+- 完整表情板通过 `role: "expression"` 绑定导演板节点，只服务上游完整导演板；导演板吸收目标状态后仍输出正常电影分镜，不复制表情板的宫格、标签、文字、白底或其他状态。
+- 关键近景、特写或大特写确需加强时，从采用的完整表情板提取或重新生成一张同状态的干净图片，登记为 `reference` 子资产且父级指向该表情板。它只控制指定 Clip/Shot 的微表情和身体反应语言，不改变身份、Look、动作阶段、视线目标、构图或 Camera Zone。
+- 完整表情板禁止直接进入 H3。单状态参考必须只有同一角色的一个状态，没有文字、标签、边框、网格、拼贴、白底板式或其他状态；首次生成前已识别的关键近景和真实 QA 返修都可使用。
 
 ## Complete Multi-View Scene Board
 
@@ -126,14 +136,15 @@ Visual Skill 只定义身份板、场景、道具或完整分镜故事板的业�
 ### Scope and layout
 
 - 一个 Clip 覆盖同场、连续时间的可读事件，镜头数与时长按剧情、对白和行动确定，不固定八镜或十五秒。执行使用当前 H3 已验证的 2–15 秒范围，超出则按有动机切点分段，不删剧情、赶台词或填空镜。
+- 剧本对白只参与镜头时长、切点和可见表演设计。写静态故事板 brief 前，先从 Shot 合同投影出不含对白的视觉版本：保留人物位置、注视目标、嘴部/身体的自然表演状态、听者反应和前后动作结果，但删除精确或转述台词、说话者身份、发言阶段、对白引用 ID 及任何可朗读文本。不得在故事板中生成字幕、对白气泡、引号台词或角色对白表格。
 - 同一 `Location + View` 可以包含多个 `Camera Zone`。Zone 是同一工作侧内可合法前后左右、升降、改变景别/焦段、使用过肩、前景遮挡和小幅角度的摄影区域，不是固定坐标、资产或新 View。门内/门外、越轴后的另一侧或新露出空间仍需正确的新 View。相邻 Shot 除非有明确的固定覆盖理由，通常让 `Camera / Body / Information` 三项至少两项产生可读变化。
 - 正式整板按 [自适应导演板模板](../ai-media-prompt-compiler/references/director-panel-prompt-method.md) 制作：页眉、主要电影画面、格外编号/时间、底部真实参考与简表。只保持信息层级和视觉风格一致，不固定行列、格数或重复密集导演卡。
 - 低饱和或黑白粗线板仅在主人明确要求时作为独立的预演资产生成，可增加运动/摄影箭头与技术标记；它不替代全彩正式导演板，也不作为默认 H3 `<Picture 1>`。无论哪种板，H3 最终视频都只呈现全彩故事世界，不泄漏网格、导演卡、编号、箭头、字幕或板式。
 - 将整板命名为包含实际格数的稳定 ID，例如五格板使用 `BRD-EP01-CLIP003-5P`；与一个 H3 Clip 一一对应，禁止多张散图拼接成正式整板。
 - 若当前 Clip 有已通过的 Blender 白模预演，分镜分别继承相应的景别、机高/角度、焦距/FOV 意图、摄影机工作侧、人物画面位置/朝向、动作关系、入口和固定锚点；白模代理造型、材质和标签不得进入正式故事板。
-- 每格先在工作台 Shot 表中完成 CAMERA、BODY/ACTION、INFORMATION、连续性、声音和起止状态；整板只显示格外编号/时间和底部简表。动作镜头优先可继续的中间态，静止或结果镜头由真实戏剧功能决定。
+- 每格先在工作台 Shot 表中完成 CAMERA、BODY/ACTION、INFORMATION、连续性、完整声音和起止状态；生成整板时只读取其视觉投影及必要的非语言环境/Foley/SFX。整板只显示格外编号/时间和不含对白的底部简表。动作镜头优先可继续的中间态，静止或结果镜头由真实戏剧功能决定。
 - 对有路径或姿态变化的连续 Shot，交接必须写成可见物理关系：人物相对命名锚点的位置和朝向、行动阶段、手/道具归属，以及上一末态如何到达本帧开场。跨镜连接道具还需保留两端、路径和连接模式；若要解开、移交、插入或损坏，先指定一个 Shot 把该变化拍清。若上一镜还在接近目标，本帧不能直接写成已跪下、已交出或已操作；先把到达过程留给同镜完成，或补一个 `transition` Shot。
-- 连续场景存在前后两张完整故事板时，不孤立生成当前整板。生成下一板前必须把上一板原图作为静态制板参考，并从上一末格逐项读取人物区域/朝向/重心/视线、手和道具归属、连接道具两端、固定陈设、Location + View、主光、环境底声及动作阶段。上一板末格设计为 `handoff_setup`：当前事件收束、说话者闭口/道具落位、注意力转移、下一行动者只进入准备；当前板 P1 继承同一人物/道具/空间/光声与动作阶段，但至少改变景别/焦段、主体焦点/占比、机高/角度、前后景或 POV 中的两项，成为 `motivated_cut_in`。末格与 P1 不是重复画面；它们要同时满足状态连续与摄影覆盖不同。
+- 连续场景存在前后两张完整故事板时，不孤立生成当前整板。生成下一板前必须把上一板原图作为静态制板参考，并从上一末格逐项读取人物区域/朝向/重心/视线、手和道具归属、连接道具两端、固定陈设、Location + View、主光、环境底声及动作阶段。上一板末格设计为 `handoff_setup`：当前事件与人物嘴部/身体动作收束、道具落位、注意力转移，下一行动者只进入准备；当前板 P1 继承同一人物/道具/空间/光声与动作阶段，但至少改变景别/焦段、主体焦点/占比、机高/角度、前后景或 POV 中的两项，成为 `motivated_cut_in`。末格与 P1 不是重复画面；它们要同时满足状态连续与摄影覆盖不同。
 
 ### Screen-space contract
 
@@ -151,17 +162,17 @@ Visual Skill 只定义身份板、场景、道具或完整分镜故事板的业�
 
 ### Static request and QA
 
-将实际可见角色的 current 完整身份板、当前 `Location + View` 和关键道具按声明职责组成真实有序 IMAGE 批次。只有静态制板接口确需更清楚读取面部时，才可从同一 current 完整身份板临时裁取输入区域；该裁图不登记为资产、不替代身份板、不作为 H3 Picture，也不输出为独立人物图。跨镜连接道具同时影响本 Shot 行动或下一个开场时，其真实道具参考不可因整板中隐约可见一根线而降级为纯文字。Visual 只定义分镜导演板需求与参考选择，由 Prompt Skill 形成唯一语义 brief；执行时不得再次改写该 brief。
+将实际可见角色的 current 完整身份板、当前 Shot 所需的 current 完整人物表情板、当前 `Location + View` 和关键道具按声明职责组成真实有序 IMAGE 批次。完整表情板只用于让导演板吸收指定状态，不得让它的宫格、标签、文字或其他状态进入导演板。只有静态制板接口确需更清楚读取面部时，才可从同一 current 完整身份板临时裁取输入区域；该裁图不登记为资产、不替代身份板、不作为 H3 Picture，也不输出为独立人物图。跨镜连接道具同时影响本 Shot 行动或下一个开场时，其真实道具参考不可因整板中隐约可见一根线而降级为纯文字。Visual 只定义分镜导演板需求与参考选择，由 Prompt Skill 形成唯一语义 brief；执行时不得再次改写该 brief。
 
 同一 `Location + View` 中背景、陈设和摄影机工作侧应保持稳定时，完整分镜故事板直接绑定 current `Location + View` 与必要的同 View continuity reference：前者锁定可导航空间、固定建筑、主光和固定物；后者只锁定实际可见的背景事实、陈设关系和固定锚点，不得锁死分镜的景别、焦段、机高、构图、前中后景、主体位置、姿态或表情。多人场面还继承未获准改变的焦点人物/人群簇区域、朝向、密度和通道。continuity reference 只服务静态整板生成，不作为 H3 的额外 Picture。
 
 分镜内改变构图、景别或机高时，不把旧机位散图硬塞进参考批次；直接在同一整板里写清相对上一格的观看变化。只有摄影机跨到门内/门外、越轴后的另一侧，或新露出的空间必须稳定时才先建立正确的新 `Location + View`。
 
-完整故事板通过前看真实图片并逐格检查：身份与 Character Look、Project / Scene Look、画面左右/朝向/视线、轴线与工作侧、入口和地标、手与道具归属、主光、动作阶段、身体重心/肢体/表情是否服务 Dramatic Beat、前景/主体/后景是否有意设计，以及相邻格的 Camera / Body / Information 是否按计划变化。身份正确但分镜重复中性站姿、同一表情、同一机高/景别/构图，仍不通过。多人场面还检查具名人物未被替换、每个 `Crowd-*` 的人数/区域/整体朝向与通道符合站位合同。连接道具必须跨格保持归属者、两端、可见路径/余量和当前模式，直到某一明确 Panel 拍清其变化。一个关键 Beat 必须恰好映射到一个 Panel 或明确画外载体；遗漏、重复或物理跳变时先修整板，不在 H3 阶段掩盖。
+完整故事板通过前看真实图片并逐格检查：身份与 Character Look、Project / Scene Look、画面左右/朝向/视线、轴线与工作侧、入口和地标、手与道具归属、主光、动作阶段、身体重心/肢体/表情是否服务 Dramatic Beat、前景/主体/后景是否有意设计，以及相邻格的 Camera / Body / Information 是否按计划变化；同时确认主镜头、页眉、简表和参考区均没有角色台词、说话者、发言阶段、对白引用 ID、字幕或对白气泡。身份正确但分镜重复中性站姿、同一表情、同一机高/景别/构图，或泄漏任何对白信息，仍不通过。多人场面还检查具名人物未被替换、每个 `Crowd-*` 的人数/区域/整体朝向与通道符合站位合同。连接道具必须跨格保持归属者、两端、可见路径/余量和当前模式，直到某一明确 Panel 拍清其变化。一个关键 Beat 必须恰好映射到一个 Panel 或明确画外载体；遗漏、重复或物理跳变时先修整板，不在 H3 阶段掩盖。
 
 某一格失败时，使用原完整整板加同一身份、场景、道具和空间合同做目标格编辑；复核其他格没有被破坏。若门窗、设备、固定陈设或主光漂移，先修整板目标格。若整板的空间或剧情安排本身不成立，先修 Clip 拆解，再重新生成整板。
 
-跨板边界失败时，同时读取上一张与下一张原完整整板，只定向修上一末格和下一 P1：保持这两张板中除目标边界格外的所有 Panel、Beat 顺序和剧情结果不变，复核当前说话者已收束、下一行动者仅准备、道具与空间状态连续，并确认下一 P1 采用新的有动机摄影覆盖。关系锚点首先用于辅助这次静态修板；修板后 H3 仍无法稳定复杂几何时才占用后续 Picture 槽。
+跨板边界失败时，同时读取上一张与下一张原完整整板，只定向修上一末格和下一 P1：保持这两张板中除目标边界格外的所有 Panel、Beat 顺序和剧情结果不变，复核当前人物的嘴部/身体动作已收束、下一行动者仅准备、道具与空间状态连续，并确认下一 P1 采用新的有动机摄影覆盖。关系锚点首先用于辅助这次静态修板；修板后 H3 仍无法稳定复杂几何时才占用后续 Picture 槽。
 
 ### High-risk relational blocking anchor
 
@@ -189,11 +200,13 @@ Visual Skill 只定义身份板、场景、道具或完整分镜故事板的业�
 
 交给 Prompt/Video Skills：
 
-- H3 实际媒体输入：数据库已采用的完整导演板及明确绑定版本的实际出镜人物身份板、当前场景板、关键道具、按需关系锚点与实际 Speaker Voice；
-- 上游静态制板参考：Scene Master / `Location + View`、同 View continuity reference、表演板与 Palette；这些不作为常规 H3 Picture；
+- H3 实际媒体输入：数据库已采用的完整导演板及明确绑定版本的实际出镜人物身份板、关键近景所需的单状态表情 `reference` 子资产、当前场景板、关键道具、按需关系锚点与实际 Speaker Voice；
+- 上游静态制板参考：Scene Master / `Location + View`、同 View continuity reference、完整 `expression` 人物表情板与 Palette；这些不作为 H3 Picture；
 - 当前采用的完整分镜故事板及其 `Beat → Clip → Panel/Shot` 映射；
 - 制作拆解中每个 Panel 的屏幕空间合同、Shot 职责、开始/结束状态和相邻交接；
 - 每个 Shot 的 Camera Zone、前景/主体/后景、动作阶段，以及 `触发 → 眼神/眼睑/眉间/嘴唇下颌/呼吸 → 身体协同 → 结束变化` 的可见表演；状态名和相对强度只能作为内部索引；
 - 开头状态、结尾状态、动作、镜头、声音和连续性要求。
 
-完整分镜故事板直接作为 H3 Ref2VA 的 `<Picture 1>`，控制该 Clip 的镜头顺序、构图、人物位置/朝向、动作阶段、摄影机工作侧和状态交接。后续 Picture 直接使用实际出镜人物的完整身份板、当前完整场景板和实际关键道具板；表演板、Global/Scene Palette、Scene Master 与 `Location + View` 继续服务上游整板生成，不作为常规 H3 Picture，也不追加单视角人物图。制作拆解已标明高风险，或真实 QA 证明某个 Panel/跨 Clip 关系仍无法继承时，才补一张干净彩色关系锚点并限定适用 Shot；不使用上一 Clip 原始尾帧自动续接。
+故事板交接只提供视觉镜头事实；精确对白、Speaker、发言阶段和对白声音路线必须由 Video/Audio Skills 从同 revision 的剧本与 Shot 合同重新读取，禁止从故事板图片或板面文字反推。
+
+完整分镜故事板直接作为 H3 Ref2VA 的 `<Picture 1>`，控制该 Clip 的镜头顺序、构图、人物位置/朝向、动作阶段、摄影机工作侧和状态交接。后续 Picture 依次使用实际出镜人物的完整身份板、关键近景所需的单状态表情子参考、当前完整场景板、实际关键道具板和其他必要参考；完整人物表情板、Global/Scene Palette、Scene Master 与 `Location + View` 继续服务上游整板生成，禁止作为 H3 Picture。九图不足时优先保留导演板、身份板和场景板；只有单状态表情参考承载关键剧情信息时，才让它优先于次要道具或一般参考。制作拆解已标明高风险，或真实 QA 证明某个 Panel/跨 Clip 关系仍无法继承时，才补一张干净彩色关系锚点并限定适用 Shot；不使用上一 Clip 原始尾帧自动续接。

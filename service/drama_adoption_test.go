@@ -86,6 +86,52 @@ func TestDramaAdoptionExportAndMediaProtection(t *testing.T) {
 	if _, err := AdoptDramaOutput(ctx, "p", "e", "first", input); err == nil {
 		t.Fatal("stale adoption accepted")
 	}
+	newObject, err := UploadDramaMedia(ctx, bytes.NewReader(data), "video/mp4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	newer, err := ImportDramaOutput(ctx, "p", "e", "first", DramaImportOutputInput{RequestID: "newer", Kind: "video", StorageID: newObject.ID, SourceKey: "legacy:newer", ClipRevision: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	auto, err := AutoAdoptLatestDramaOutput(ctx, newer)
+	if err != nil || auto.StorageID != newObject.ID || auto.Revision != 2 {
+		t.Fatalf("auto adoption %v %+v", err, auto)
+	}
+	// Run history stays intact so the owner can explicitly return to an earlier output.
+	restored, err := AdoptDramaOutput(ctx, "p", "e", "first", DramaAdoptionInput{RunID: run.ID, StorageID: object.ID, ClipRevision: 1, ExpectedRevision: auto.Revision})
+	if err != nil || restored.StorageID != object.ID || restored.Revision != 3 {
+		t.Fatalf("restore prior output %v %+v", err, restored)
+	}
+	boardData := []byte{0x89, 'P', 'N', 'G', 13, 10, 26, 10}
+	oldBoardObject, err := UploadDramaMedia(ctx, bytes.NewReader(boardData), "image/png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldBoard, err := ImportDramaOutput(ctx, "p", "e", "second", DramaImportOutputInput{RequestID: "board-old", Kind: "image", StorageID: oldBoardObject.ID, SourceKey: "legacy:board-old", ClipRevision: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	boardAdoption, err := AdoptDramaOutput(ctx, "p", "e", "second", DramaAdoptionInput{RunID: oldBoard.ID, StorageID: oldBoardObject.ID, ClipRevision: 1})
+	if err != nil || boardAdoption.Revision != 1 {
+		t.Fatalf("adopt storyboard %v %+v", err, boardAdoption)
+	}
+	newBoardObject, err := UploadDramaMedia(ctx, bytes.NewReader(boardData), "image/png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	newBoard, err := ImportDramaOutput(ctx, "p", "e", "second", DramaImportOutputInput{RequestID: "board-new", Kind: "image", StorageID: newBoardObject.ID, SourceKey: "legacy:board-new", ClipRevision: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	autoBoard, err := AutoAdoptLatestDramaOutput(ctx, newBoard)
+	if err != nil || autoBoard.StorageID != newBoardObject.ID || autoBoard.Revision != 2 {
+		t.Fatalf("auto adopt storyboard %v %+v", err, autoBoard)
+	}
+	restoredBoard, err := AdoptDramaOutput(ctx, "p", "e", "second", DramaAdoptionInput{RunID: oldBoard.ID, StorageID: oldBoardObject.ID, ClipRevision: 1, ExpectedRevision: autoBoard.Revision})
+	if err != nil || restoredBoard.StorageID != oldBoardObject.ID || restoredBoard.Revision != 3 {
+		t.Fatalf("restore prior storyboard %v %+v", err, restoredBoard)
+	}
 	if _, err := ExportDramaEpisode(ctx, "p", "e", false); err == nil {
 		t.Fatal("full export missing second accepted")
 	}

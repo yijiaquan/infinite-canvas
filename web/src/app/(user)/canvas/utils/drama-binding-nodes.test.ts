@@ -20,7 +20,7 @@ test("binding inputs stay outside the target group with fixed version and proper
     );
     for (const [index, node] of first.nodes.slice(1).entries()) {
         assert.equal(node.metadata?.groupId, undefined);
-        assert.equal(node.metadata?.dramaClipId, node.type === CanvasNodeType.Audio ? "clip" : undefined);
+        assert.equal(node.metadata?.dramaClipId, undefined);
         assert.equal(node.metadata?.dramaBindingTarget, undefined);
         assert.equal(node.metadata?.dramaInputOrder, undefined);
         assert.equal(node.metadata?.dramaAssetVersionId, [image, voice, video][index].versionId);
@@ -30,6 +30,14 @@ test("binding inputs stay outside the target group with fixed version and proper
         assert.equal(edge?.dramaInputRole, [image, voice, video][index].role);
     }
     assert.deepEqual(applyDramaBindingNodes(first.nodes, first.connections, target.id, [image, voice, video]), first);
+});
+
+test("expression bindings project as image nodes and preserve their dedicated edge role", () => {
+    const expression = { title: "Suppressed fear", assetId: "expression-state", versionId: "expression-v1", storageId: "expression-image", role: "expression", order: 0 };
+    const result = applyDramaBindingNodes([target], [], target.id, [expression]);
+    assert.equal(result.nodes[1].type, CanvasNodeType.Image);
+    assert.equal(result.connections[0].dramaInputRole, "expression");
+    assert.equal(result.connections[0].dramaInputOrder, 0);
 });
 
 test("distant legacy references never expand a Clip group during binding", () => {
@@ -100,11 +108,36 @@ test("missing or non-drama target is a no-op", () => {
     }
 });
 
-test("voice bindings for distinct speakers have separate stable nodes", () => {
+test("one Voice version uses a global node while binding edges retain distinct speakers", () => {
     const inputs = [voice, { ...voice, speaker: "Bob", order: 2 }];
     const applied = applyDramaBindingNodes([target], [], target.id, inputs);
-    assert.equal(new Set(applied.nodes.map((node) => node.id)).size, 3);
+    assert.equal(new Set(applied.nodes.map((node) => node.id)).size, 2);
+    assert.equal(applied.nodes[1].id, "drama:reference:voice-1");
+    assert.equal(applied.nodes[1].metadata?.dramaClipId, undefined);
+    assert.deepEqual(applied.connections.map((edge) => edge.dramaInputSpeaker), ["Alice", "Bob"]);
     assert.deepEqual(applyDramaBindingNodes(applied.nodes, applied.connections, target.id, inputs), applied);
+});
+
+test("legacy per-Clip Voice copies are merged into one global node without losing speaker edges", () => {
+    const secondTarget: CanvasNodeData = { ...target, id: "clip-two-video", metadata: { ...target.metadata, dramaClipId: "clip-two", groupId: "clip-two-group" } };
+    const legacyVoice: CanvasNodeData = {
+        id: "drama:clip:reference:voice-1:Alice",
+        type: CanvasNodeType.Audio,
+        title: "Voice",
+        position: { x: -300, y: 120 },
+        width: 220,
+        height: 140,
+        metadata: { dramaClipId: "clip", dramaRole: "reference", dramaAssetVersionId: "voice-1", content: "/api/files/audio-1/content", storageKey: "server:audio-1", status: "success" },
+    };
+    const legacyEdge = { id: "drama:binding:video-target:voice-1:voice:Alice", fromNodeId: legacyVoice.id, toNodeId: target.id, dramaAssetVersionId: "voice-1", dramaInputRole: "voice", dramaInputOrder: 1, dramaInputSpeaker: "Alice" };
+    const result = applyDramaBindingNodes([target, secondTarget, legacyVoice], [legacyEdge], secondTarget.id, [{ ...voice, speaker: "Bob", order: 0 }]);
+    const voices = result.nodes.filter((node) => node.metadata?.dramaAssetVersionId === "voice-1");
+    assert.equal(voices.length, 1);
+    assert.equal(voices[0].metadata?.dramaClipId, undefined);
+    assert.deepEqual(result.connections.map((edge) => ({ from: edge.fromNodeId, target: edge.toNodeId, speaker: edge.dramaInputSpeaker })), [
+        { from: voices[0].id, target: target.id, speaker: "Alice" },
+        { from: voices[0].id, target: secondTarget.id, speaker: "Bob" },
+    ]);
 });
 
 test("storyboard and video targets share the same asset node with target-specific edges", () => {

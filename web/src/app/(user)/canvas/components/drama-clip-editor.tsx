@@ -444,7 +444,7 @@ export const DramaClipEditor = forwardRef<
                                                 node={node}
                                                 nodes={canvas?.nodes || []}
                                                 connections={canvas?.connections || []}
-                                                className="h-40 max-h-[28rem] resize-y overflow-y-auto"
+                                                className="h-80 max-h-[48rem] resize-y overflow-y-auto"
                                                 onChange={(value) => canvas?.updatePrompt(node.id, value)}
                                             />
                                             <Button type="link" onClick={() => guard(() => canvas?.focus(node.id))}>

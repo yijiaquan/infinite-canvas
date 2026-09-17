@@ -10,8 +10,8 @@ description: 当前后端主要数据表与字段说明
 - `drama_projects`：`id` 主键、`user_id` 归属索引、`title`、`source_type`、`source_text`（text）、`adaptation`（text）、`global_style`（text）、`revision`、`created_at`、`updated_at`。
 - `drama_episodes`：`id` 主键、`user_id` 归属索引、`project_id` 项目索引、`canvas_id` 唯一索引、`title`、`position`、`script`（text）、`revision`、`created_at`、`updated_at`。
 - `drama_projects.generation_defaults` 保存 image/video 两类显式参数；省略字段保留，提交该字段整体替换，不隐式填充生成器默认值。
-- `drama_assets` / `drama_asset_versions`：项目资产档案、父级造型、固定默认声音版本、采用版本与归档状态；版本引用现有 `storage_objects`，不复制媒体到另一套库。
-- `drama_bindings`：每 Clip、阶段独立 CAS 版本，固定资产/版本/用途/顺序/实际说话者。可视连线不代替真实绑定顺序。
+- `drama_assets` / `drama_asset_versions`：项目资产档案、父级造型、固定默认声音版本、采用版本与归档状态；版本引用现有 `storage_objects`，不复制媒体到另一套库。`expression` 人物表情板必须直属 `character`（可为具体造型），只接受图片；用于视频的干净单状态图片保存为以该表情板为父级的 `reference`。
+- `drama_bindings`：每 Clip、阶段独立 CAS 版本，固定资产/版本/用途/顺序/实际说话者。`expression` 用途在 storyboard 阶段只接受完整表情板，在 video 阶段只接受表情板下属的单状态 `reference`；可视连线不代替真实绑定顺序。
 - `drama_runs`：持久队列、冻结输入、执行图、上游ID、状态及持久输出；requestId按用户幂等。秘密及内部请求体不出现在公共运行响应。
 - `drama_adoptions`：按Clip与媒体类型保存采用版本、语义指纹和采用版本号；响应动态计算needsReview。
 - 新建分集与现有 `canvas_projects` 同事务创建；版本从 1 递增。专用样本导入仅创建独立副本，不写回旧项目。接口见 [漫剧项目与分集](drama-projects.md)。

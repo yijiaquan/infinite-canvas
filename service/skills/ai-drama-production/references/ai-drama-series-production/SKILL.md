@@ -1,6 +1,6 @@
 ---
 name: ai-drama-series-production
-description: Business-first series development and episode coordination for original or adapted AI drama. Use to establish source and rights route, series bible, episode plan, continuity, accepted script, production breakdown, and handoff to visual, audio, and video production without creating a second control system.
+description: Coordinate original or adapted AI-drama series through source and rights route, series bible, episode planning, cross-episode continuity, validation of the accepted script, production breakdown, and downstream handoff. Use for series coordination and Clip/Shot breakdown; it does not author original or adapted screenplays and does not replace Story Writing or Novel Adaptation.
 ---
 
 # AI Drama Series Production
@@ -26,7 +26,7 @@ description: Business-first series development and episode coordination for orig
 2. 建立 Series Bible
    - 核心题材、世界规则、类型承诺、视觉/声音基调和可观察视觉语言：媒介/真实度、主要识别通道、材质与轮廓、空间密度、色光响应及禁区。再建立轻量 Project Look：基础色域、肤色保护、阴影/高光/黑位/对比/饱和度、强调色职责、禁区与允许破格条件。
    - 在同一份 Bible 或内容简报中静默选择 `Look route: text_only | project_look_board`，并记录 Project Look ID。只要作品采用非通用的强风格媒介/渲染语言、跨多个场景或时间/天气仍需统一色域、明确的冷暖关系、定制肤色/阴影/高光/黑位/材质响应、承担叙事职责的强调色、可复用 Color State，或现有结果已发生综合色彩漂移，就必须选择 `project_look_board`；在第一张正式身份板、场景、道具或分镜导演板之前先生成并采用一张 `LOOK-PROJECT-*` Global Project Palette。全局母色板从文字 Project Look 和可用的 2–4 张代表性 current Scene Master 提炼全片共同色域、黑位/中性锚点、重复环境/光线色族及角色/道具/叙事强调色。只有自然/通用视觉、场景少且兼容、没有专门综合色彩职责，并能由文字 Project Look + Scene Master 稳定继承时，才可选择 `text_only`。这是内部制作路由，不是主人确认点、锁或新文档。
-   - 主要人物的欲望、恐惧、秘密、关系和长期弧线。为重复主角补一段紧凑的“角色表演语言”：情绪外露程度、惯常的视线/呼吸/肩颈/手部反应、失控方式与恢复控制方式。它是文字人物设定，不是新资产，也不把所有角色套进同一套瞪眼、张嘴或皱眉模板。
+   - 主要人物的欲望、恐惧、秘密、关系和长期弧线。为重复主角补一段紧凑的“角色表演语言”：情绪外露程度、惯常的视线/呼吸/肩颈/手部反应、失控方式与恢复控制方式。它是文字人物设定，不替代按需建立的 `expression` 人物表情板，也不把所有角色套进同一套瞪眼、张嘴或皱眉模板。
    - 固定地点、关键道具、时间线和不可破坏的连续性事实。
    - 对重复或空间复杂的地点，按 [Scene Bible 与 Shot Package 分工](references/scene-bible-and-shot-package.md) 选择 `hero_recurring / standard / transient`。只有主场景才建立完整 Anchor、俯视空间关系、轴线、Blocking Zone、Camera Zone、实际需要的 View Library，以及有动机的 `Light Source Map`；一次性场景不为未来可能性过度生产。Scene Look 继承 Project Look；只有特殊主场景或连续段落具有会跨多个 Shot/Clip 复用的独立综合色彩家族时，才建立 `LOOK-SCENE-<LOCATION>-<STATE>` 子色板，记录父 Global Palette、保留锚点、局部替换/新增的环境与光线颜色及适用边界。单次闪烁、爆炸、警报瞬间或一镜曝光变化仍写为 `Color State / Lighting State`，不新建色板，也不能用每镜不同的全局滤镜代替。
    - 每集承诺、推进点和结尾钩子。
@@ -46,15 +46,17 @@ description: Business-first series development and episode coordination for orig
 5. 制作拆解
 
     对话、观察、对峙和 POV 在同一制作拆解额外建立紧凑 `Eyeline Contract`：每位角色当前看谁/什么、目标在场内的位置/距离/眼线高度、摄影机观察位置、脸部角度、视线何时因何触发转移。普通剧情镜头默认注视场内目标；只有明确 POV、自拍视频、视频通话、演讲或直面观众时才允许直视镜头。身份板正面目光不属于剧情视线。
-    制作依赖固定为：`确认故事/剧本 → 生成并采用所需人物/场景/道具 → 使用 current 资产生成完整导演板 → 导演板逐格 QA 通过 → 提交视频 Clip`。制作拆解可以一次规划后续需求，但执行不能越级：不能因为 Clip 表已写好就跳过资产 QA，也不能先用临时人物或场景生成正式整板后再补资产。这里的“通过”是内容可用性，不是新增锁或主人确认点。
+    制作依赖固定为：`确认故事/剧本 → 生成并采用所需人物/表情/场景/道具 → 使用 current 资产生成完整导演板 → 导演板逐格 QA 通过 → 提交视频 Clip`。制作拆解可以一次规划后续需求，但执行不能越级：不能因为 Clip 表已写好就跳过资产 QA，也不能先用临时人物、表情或场景生成正式整板后再补资产。这里的“通过”是内容可用性，不是新增锁或主人确认点。
+
+    拆解每个 `Character + Look` 的表情板需求：重复近景、微表情承载关键信息、关键情绪转折、审讯/悬疑/亲密场面，或已知表情僵化风险满足任一项时，标记完整 `expression` 人物表情板及其目标 Panel/Shot。每个状态使用稳定状态 ID，记录相对强度、可见触发、适用 Panel/Shot 和结束变化。关键近景、特写或大特写若需要额外面部约束，同时预先标记一张对应的单状态干净参考；它可用于首次 H3 生成，不以视频失败为前提。Look、年龄阶段、妆容或伤势发生实质变化时，按新的 `Character + Look` 建立对应表情板，旧 Clip 继续冻结其原绑定版本。
 
     采用 `剧本 Beat → 实际 Shot → 连贯 Clip → 完整导演板 → H3`。按动作、精确对白、信息和剪辑理由决定镜头数及持续时间，不固定八镜、十五秒或均分。**默认让同一人物、同一目标和同一因果链在一个连续 Shot 中完成；新增切镜必须证明它让观众看见新的必要事实、看清当前机位无法读清的关键动作、改变观察立场，或形成不可替代的节奏重音。** 微表情、一次视线变化、吸气、握拳、单步移动、动作准备或普通听者反应默认并入当前主动作/对白 Shot，不单独成镜。长场次先完整规划，执行前依当前 H3 已验证 2–15 秒范围沿自然切点拆为多个 Clip；每个关键 Beat 被镜头或明确画外载体认领，不遗漏、不重复，但一个 Beat 可以由一个 Shot 内的连续动作链完整承载。
 
     固定 Shot 方案前做一次静默“紧凑性压缩”：把能并行发生的对白、身体任务、听者反应和摄影跟随合并；删除重复表达同一信息或情绪的建立、反应、插入和余韵；将 `察觉 → 转头 → 起身 → 靠近` 这类同目标连续微动作优先写成一个可演动作链。逐镜执行删除测试：删去该 Shot 后若剧情事实、关键动作可读性、观察立场和节奏重音都不受损，就合并或删除。不要为了填写导演字段、制造 Camera/Body/Information 变化或凑满时长保留镜头。
 
-    每个 Clip 通过 current 人物/场景/道具/Look 一次生成完整全彩导演板，按 [自适应导演板模板](../ai-media-prompt-compiler/references/director-panel-prompt-method.md) 使用页眉、大幅镜头和底部参考/简表。详细导演字段留在工作台 Shot 表；版面随 N 变化，不用每格密集卡片替代画面。黑白预演仍为单独可选路线。
+    每个 Clip 通过 current 人物/所需完整表情板/场景/道具/Look 一次生成完整全彩导演板，按 [自适应导演板模板](../ai-media-prompt-compiler/references/director-panel-prompt-method.md) 使用页眉、大幅镜头和底部参考/简表。详细导演字段留在工作台 Shot 表；版面随 N 变化，不用每格密集卡片替代画面。黑白预演仍为单独可选路线。
 
-    完整故事板是 H3 `<Picture 1>` 的默认视觉输入，控制镜头顺序、调度、动作阶段、空间锚点与情绪递进。不要为每个 Panel 再生成一张必选彩色关键帧，也不要把实际各 Panel 裁图分别填满 Picture 槽。后续 Picture 直接连接实际出镜人物的完整身份板、当前完整场景板和实际关键道具板；不为 H3 另生单视角人物、场景或道具图。相邻 Clips 先完成整板 末格/下一板首格 交接设计和定向返修；只有真实 QA 仍证明复杂关系无法控制时，才补一张干净彩色关系锚点。提示词必须把所有板声明为规划或识别参考，成片输出为完整彩色电影画面，不保留网格、编号、箭头、白底或板式。
+    完整故事板是 H3 `<Picture 1>` 的默认视觉输入，控制镜头顺序、调度、动作阶段、空间锚点与情绪递进。不要为每个 Panel 再生成一张必选彩色关键帧，也不要把实际各 Panel 裁图分别填满 Picture 槽。后续 Picture 固定按实际出镜人物完整身份板、关键近景所需单状态表情参考、当前完整场景板、实际关键道具板及其他必要参考排序；完整宫格表情板禁止直接进入 H3。九图不足时保留导演板、身份板和场景板，只有表情承担关键剧情信息时才优先于次要道具或一般参考。不为 H3 另生常规单视角人物、场景或道具图。相邻 Clips 先完成整板 末格/下一板首格 交接设计和定向返修；只有真实 QA 仍证明复杂关系无法控制时，才补一张干净彩色关系锚点。提示词必须把所有板声明为规划或识别参考，成片输出为完整彩色电影画面，不保留网格、编号、箭头、白底或板式。
 
     再提取 Character + Look、Location + View、Prop + State、Clip/Panel/Shot、对白/旁白/声音、连续性变化，以及复用或新制作决定。每个 Panel 必须写明观众画面坐标、轴线锚点、摄影机工作侧、人物位置/朝向/视线、手与持物、入口/地标、主光与前后状态；空间复杂时补 3–5 个真实可见固定锚点。先判断 `reuse / new_variant / new_asset / shot_state`；只持续且可复用的变化进入资产，瞬时姿势和机位留在 Shot 状态。绳索、手铐、背带、软管、线缆、牵引物或插入式连接件若跨 Panel 或 Clip 影响人物行动、剧情或安全，标为 `连接道具状态`，写归属者、两端、可见路径/长度或滑动方式、当前连接模式与唯一允许变化。先标明人物/物件是 `on_screen`、`voice_only`、`represented` 还是 `mentioned_only`；对同框角色记录相对体量、眼线和轮廓区分；对台词标明声源、语言和实际表演时间窗口。多事实的悬疑/揭示 Panel 才逐条写“事实 → 给出或隐藏 → 画面/声音载体 → 揭示触发”。
 
@@ -63,8 +65,9 @@ description: Business-first series development and episode coordination for orig
    - 采用五种连续性：身份连续、空间连续、表演连续、摄影连续和 Look/色光连续。身份/Look、建筑拓扑、固定锚点、道具归属、轴线、屏幕方向，以及 Project/Scene Look 的肤色、阴影/高光、黑位、强调色职责和有动机光源属于稳定项；景别、焦段、机高、角度、构图、前中后景、人物姿态、重心、肢体、眼神、微表情、情绪强度，以及剧情允许的 Color/Lighting State 变化属于逐 Shot 动态项。总原则是“锁世界，不锁画面；锁身份，不锁姿态和表情；锁空间逻辑，不锁摄影机；锁色彩语言，不锁每个像素”。不得把身份板的中性姿势/表情、场景 View 的示例构图或 Look Board 的示例镜头误当成后续 Shot 必须复制的内容。
    - Scene Bible 与 Shot Package 必须分层：Scene Master、Anchor、空间关系、轴线、合法 Blocking Zone、Camera Zone 和已采用 View 回答“世界是什么”；精确机位、景别、焦段、构图、运镜、人物站位、动作和表演回答“这一镜怎么拍”。Camera Zone 使用稳定 ID `CAM-ZONE-*`；Master View 只能作为空间参考，不能成为最终 Shot 模板。
    - 同一 `Location + View` 内按需划分 `Camera Zone`：它是合法摄影区域与基础观看方向，不是固定坐标或新资产。一个 Zone 内可前后左右移动、升降、改变景别/焦段、使用过肩/前景遮挡和小幅角度变化，只要不越过未建立地理、不破坏轴线、屏幕方向与锚点关系。先由真实观看任务决定是否切镜；只有切点已经成立后，才检查相邻 Shot 的 `Camera / Body / Information` 是否通常至少两项产生可读变化。该规则是重复镜头检查，不是新建 Shot 的理由；若不足两项，优先合并，其次才重新设计覆盖。
-   - 每个有人物情绪推进的 Clip 先写一条简短“表演曲线”：`开场状态 → 触发 → 上升/压制/爆发/回落 → 结尾残留状态`。强度只用于同一角色在本 Clip 内比较，不是模型参数，也不要求单调递增。
-   - 有人物动作或情绪转折的 Shot 在同一拆解中补最小动态导演字段：动作阶段优先选择 `mid_state`，并按需写身体姿态、重心、头部、肩膀、手臂/手、腿、躯干、视线，以及表情状态与相对强度。动作中间态必须物理可读，例如“臀部刚离椅、手撑台面、椅子后滑”，而不是只写“站起来”。表情不能停留在情绪名称或百分比，必须展开成眼球焦点、上下眼睑、眉间、嘴唇、下颌、呼吸/颈部张力，并与重心、肩颈、手臂或躯干对同一触发作出反应。人物表演遵循其角色表演语言，但当前剧情触发和身体任务优先。
+   - 分开记录人物的世界位置与屏幕区域：世界位置使用门、桌、台阶等具名场景锚点，屏幕区域使用左/中/右及前后层次。同一人物未发生可见移动、明确新机位或有动机换轴时，两者都从上一 Shot 继承；不得先写“画面左侧”，下一句或下一镜无过程改成“画面边缘”或另一侧。
+   - 每个有人物情绪推进的 Clip 先写一条简短“表演曲线”：`开场状态 → 触发 → 上升/压制/爆发/回落 → 结尾残留状态`。这是内部拆解，不得在最终视频 Prompt 中照抄成“开场状态是”等字段句。强度只用于同一角色在本 Clip 内比较，不是模型参数，也不要求单调递增。
+   - 有人物动作或情绪转折的 Shot 在同一拆解中补最小动态导演字段：动作阶段优先选择 `mid_state`，并按需检查姿态、重心、视线、表情与身体响应。动作中间态必须物理可读，例如“臀部刚离椅、手撑台面、椅子后滑”，而不是只写“站起来”。这些维度服务导演板和内部检查，最终视频 Prompt 只选会改变画面的一两个反应，不罗列身体部位。人物表演遵循其角色表演语言，但当前剧情触发和身体任务优先。
 
    - 双人对话、门口进出、道具交接、揭示、追逐、打斗、武器或技能攻击，或多人同框时，在同一 Clip 的分镜中安排紧凑调度：Panel 功能（`establish / primary_action / reaction / insert / transition / reveal / resolve`）、唯一完成的主状态变化、行动主导者、其他人的受控反应，以及交给下一格的状态。三人以上、围堵、队列或人群场面还在同一份拆解写一次“多人/群像站位合同”：焦点人物与命名锚点的画面区域/朝向、具名配角的位置、匿名人群簇及人数/区域/朝向、出入口或通道，以及本 Clip 唯一允许重排的人或人群簇。具名反复角色仍用各自身份板；匿名背景人群不为逐人身份建资产。冲突/技能攻击还明确双方距离/朝向/重心、关键物或效果源头、目标路径/范围和可继承后果；一个 Panel 只完成一轮可读战术变化，Clip 可以连续包含多轮。一个主状态变化只由一个 `primary_action` Panel 真正完成；其余 Panel 只建立、反应、看清细节或确认结果。
    - 同一场次有两个以上 Shot，或涉及动作路径、对话、进出空间、关键道具或多人关系变化时，在同一制作拆解按需补“场次覆盖与镜头交接”：每个切点写观众必须读到什么、相对上一镜改变了什么、为何此处切、以及末态如何接到下一镜开场。直接剪辑至少要清楚改变景别/取景重点、观察侧/POV、人物或道具关系之一；没有新读点就合并或重新设计覆盖。多人场面不按固定数量机械切镜，但每一次焦点行动、权力关系或人群通道真正变化，都要有一个能读清其空间关系或受控反应的覆盖，而非让同一视角把所有事件做到底。`Location + View` 稳定的是地理和轴线，不是要求所有镜头保持同一构图。跑向目标、递交、开门、蹲下操作等动作还要写相对命名锚点的起点、可见路径/完成动作和终点；连接道具额外写两端、连接路径和连接模式怎样从上一末态进入当前开场。下一镜不能无过程地假定人物已经到达、改变姿态或从仍相连变为已脱离。详见 [镜头覆盖与状态交接](../ai-media-prompt-compiler/references/coverage-and-handoff.md)。
@@ -83,7 +86,7 @@ description: Business-first series development and episode coordination for orig
 
 7. 交给制作 Skills
    - 选择白模预演时：Blender 交付实际预演、同 Clip 的摄影/调度合同与 `previs_video`。Visual 将合同落实到完整分镜导演板；Prompt/Video 在当前 UI 有可用视频槽且预演通过 QA 时，将该视频接入 H3 `<Video 1>`，其职责仅为相机、调度和动作路径。
-   - Visual：接收已选择的 Look route、Project Look ID、current Global Project Palette，以及按需的 current Scene Palette。先完成全局母色板；特殊主场景确有持久独立色彩家族时，再从母色板派生一个子色板。身份板与可跨场景复用的中性道具使用全局母色板；场景、View 和完整分镜导演板优先只使用所属 current 场景子色板，没有子色板时使用全局母色板，不能把父子两张色板同时传入。身份板只回答“这个人是谁”；主要角色需要稳定微表情语言、近景表演或连续情绪弧时，再制作一张独立表演板作为 `character_reference`，它不能改写身份或 Look。色板只回答色域、冷暖比例与强调色关系；肤色保护、阴影/高光、黑位、材质和画面密度继续由文字 Project Look 表达。
+   - Visual：接收已选择的 Look route、Project Look ID、current Global Project Palette，以及按需的 current Scene Palette。先完成全局母色板；特殊主场景确有持久独立色彩家族时，再从母色板派生一个子色板。身份板与可跨场景复用的中性道具使用全局母色板；场景、View 和完整分镜导演板优先只使用所属 current 场景子色板，没有子色板时使用全局母色板，不能把父子两张色板同时传入。身份板只回答“这个人是谁”；主要角色需要稳定微表情语言、关键近景表演或连续情绪弧时，按对应 `Character + Look` 制作一张正式 `expression` 人物表情板，它不能改写身份或 Look。关键近景所需单状态图片使用父级为该表情板的 `reference`。色板只回答色域、冷暖比例与强调色关系；肤色保护、阴影/高光、黑位、材质和画面密度继续由文字 Project Look 表达。
    - 首个关键场次的分镜故事板通过后，Audio 优先用 LibTV 创建并下载重复角色的代表音色，由主人一次确认采用样本；随后绑定 Voice、对白、声音和混音。
    - Prompt：图片/视频语义和模型提示词。
    - Video：逐镜生成、连续性和返修。

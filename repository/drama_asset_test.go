@@ -51,6 +51,20 @@ func TestDramaAssetOwnershipVersionsAndParents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := CreateDramaAsset(model.DramaAsset{ID: "expression-no-parent", UserID: "u", ProjectID: "p", Kind: "expression", Revision: 1}); !errors.Is(err, ErrDramaAssetParent) {
+		t.Fatalf("expression without character parent %v", err)
+	}
+	if _, err := CreateDramaAsset(model.DramaAsset{ID: "expression-voice-parent", UserID: "u", ProjectID: "p", ParentID: "voice", Kind: "expression", Revision: 1}); !errors.Is(err, ErrDramaAssetParent) {
+		t.Fatalf("expression with non-character parent %v", err)
+	}
+	expression, err := CreateDramaAsset(model.DramaAsset{ID: "expression", UserID: "u", ProjectID: "p", ParentID: "child", Kind: "expression", Revision: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := CreateDramaAsset(model.DramaAsset{ID: "expression-state", UserID: "u", ProjectID: "p", ParentID: "expression", Kind: "reference", Revision: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := UpdateDramaAsset("u", "p", "a", 1, map[string]any{"parent_id": "child"}); !errors.Is(err, ErrDramaAssetParent) {
 		t.Fatalf("cycle %v", err)
 	}
@@ -70,6 +84,28 @@ func TestDramaAssetOwnershipVersionsAndParents(t *testing.T) {
 	voice, err = CreateDramaAssetVersion("u", "p", "voice", voice.Revision, model.DramaAssetVersion{ID: "voice-wav", StorageID: "audio", Note: "existing canvas WAV"})
 	if err != nil || voice.Revision != 2 {
 		t.Fatalf("existing WAV voice version %+v %v", voice, err)
+	}
+	if _, err := CreateDramaAssetVersion("u", "p", expression.ID, expression.Revision, model.DramaAssetVersion{ID: "expression-audio", StorageID: "audio"}); !errors.Is(err, ErrDramaAssetMedia) {
+		t.Fatalf("expression accepted audio %v", err)
+	}
+	expression, err = CreateDramaAssetVersion("u", "p", expression.ID, expression.Revision, model.DramaAssetVersion{ID: "expression-image", StorageID: "image"})
+	if err != nil || expression.Revision != 2 {
+		t.Fatalf("expression image version %+v %v", expression, err)
+	}
+	expression, err = UpdateDramaAsset("u", "p", expression.ID, expression.Revision, map[string]any{"adopted_version_id": "expression-image"})
+	if err != nil || expression.AdoptedVersionID != "expression-image" {
+		t.Fatalf("expression adoption %+v %v", expression, err)
+	}
+	if _, err := CreateDramaAssetVersion("u", "p", state.ID, state.Revision, model.DramaAssetVersion{ID: "expression-state-audio", StorageID: "audio"}); !errors.Is(err, ErrDramaAssetMedia) {
+		t.Fatalf("expression state accepted audio %v", err)
+	}
+	state, err = CreateDramaAssetVersion("u", "p", state.ID, state.Revision, model.DramaAssetVersion{ID: "expression-state-image", StorageID: "image"})
+	if err != nil || state.Revision != 2 {
+		t.Fatalf("expression state image version %+v %v", state, err)
+	}
+	expression, err = UpdateDramaAsset("u", "p", expression.ID, expression.Revision, map[string]any{"archived": true})
+	if err != nil || !expression.Archived {
+		t.Fatalf("expression archive %+v %v", expression, err)
 	}
 	a, err = CreateDramaAssetVersion("u", "p", "a", 1, model.DramaAssetVersion{ID: "v", StorageID: "image", Note: "first"})
 	if err != nil || a.Revision != 2 || a.AdoptedVersionID != "" {
@@ -95,8 +131,17 @@ func TestDramaAssetOwnershipVersionsAndParents(t *testing.T) {
 		t.Fatalf("archive %v", err)
 	}
 	assets, versions, err := ListDramaAssets("u", "p")
-	if err != nil || len(assets) != 3 || len(versions) != 2 || versions[0].MimeType != "image/png" || versions[0].Note != "first" {
+	if err != nil || len(assets) != 5 || len(versions) != 4 {
 		t.Fatalf("immutable list %+v %v", versions, err)
+	}
+	foundFirst := false
+	for _, version := range versions {
+		if version.ID == "v" && version.MimeType == "image/png" && version.Note == "first" {
+			foundFirst = true
+		}
+	}
+	if !foundFirst {
+		t.Fatalf("original immutable version missing: %+v", versions)
 	}
 	if _, err := UpdateDramaAsset("u", "p", "a", 4, map[string]any{"archived": false}); err != nil {
 		t.Fatal(err)

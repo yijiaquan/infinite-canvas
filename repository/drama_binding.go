@@ -47,6 +47,7 @@ func SaveDramaBinding(value model.DramaBinding, expected int64) (model.DramaBind
 		}
 		for _, input := range value.References {
 			var asset model.DramaAsset
+			var parent model.DramaAsset
 			var version model.DramaAssetVersion
 			var storage model.StorageObject
 			if err := tx.Where("id = ? AND user_id = ? AND project_id = ?", input.AssetID, value.UserID, value.ProjectID).First(&asset).Error; err != nil {
@@ -65,6 +66,24 @@ func SaveDramaBinding(value model.DramaBinding, expected int64) (model.DramaBind
 			}
 			if err := tx.Where("id = ? AND asset_id = ?", input.VersionID, input.AssetID).First(&version).Error; err != nil {
 				return err
+			}
+			parentKind := ""
+			if asset.Kind == "reference" && asset.ParentID != "" {
+				if err := tx.Where("id = ? AND user_id = ? AND project_id = ?", asset.ParentID, value.UserID, value.ProjectID).First(&parent).Error; err != nil {
+					return err
+				}
+				parentKind = parent.Kind
+			}
+			isExpressionState := asset.Kind == "reference" && parentKind == "expression"
+			if input.Role == "expression" {
+				valid := value.Stage == "storyboard" && asset.Kind == "expression" || value.Stage == "video" && isExpressionState
+				if !valid {
+					return errors.New("人物表情用途与制作阶段或资产类型不匹配")
+				}
+			} else if asset.Kind == "expression" {
+				return errors.New("完整人物表情板不能作为其他用途输入")
+			} else if isExpressionState {
+				return errors.New("人物表情单状态参考必须使用人物表情用途")
 			}
 			if err := tx.Where("id = ? AND created_by = ? AND deleted_at = ?", version.StorageID, value.UserID, "").First(&storage).Error; err != nil {
 				return err

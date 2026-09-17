@@ -129,7 +129,7 @@ export function DramaProductionView({
                                     nodes={canvas.nodes}
                                     connections={canvas.connections}
                                     placeholder={stage === "storyboard" ? "导演故事板提示词" : "视频制作提示词"}
-                                    className="h-56 max-h-[36rem] resize-y overflow-y-auto"
+                                    className="h-80 max-h-[48rem] resize-y overflow-y-auto"
                                     onChange={(value) => canvas.updatePrompt(node.id, value)}
                                 />
                                 </Form.Item>

@@ -60,6 +60,23 @@ func TestDramaBindingLifecycle(t *testing.T) {
 			}
 		}
 	}
+	for _, asset := range []model.DramaAsset{
+		{ID: "character", UserID: "owner", ProjectID: project.ID, Kind: "character", Revision: 1},
+		{ID: "expression", UserID: "owner", ProjectID: project.ID, Kind: "expression", ParentID: "character", Revision: 1},
+		{ID: "expression-state", UserID: "owner", ProjectID: project.ID, Kind: "reference", ParentID: "expression", Revision: 1},
+	} {
+		if err := db.Create(&asset).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, version := range []model.DramaAssetVersion{
+		{ID: "expression-version", AssetID: "expression", StorageID: "image-storage", MimeType: "image/png"},
+		{ID: "expression-state-version", AssetID: "expression-state", StorageID: "image-storage", MimeType: "image/png"},
+	} {
+		if err := db.Create(&version).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
 	read := func(ctx context.Context, stage string) (model.DramaBinding, error) {
 		return CurrentDramaBinding(ctx, project.ID, episode.ID, clip.ID, stage)
 	}
@@ -129,12 +146,40 @@ func TestDramaBindingLifecycle(t *testing.T) {
 	if err != nil || bound.Revision != 1 || len(bound.References) != 3 || bound.References[0].VersionID != image.VersionID {
 		t.Fatalf("bind: %+v %v", bound, err)
 	}
-	if err := ValidateDramaRunReferences(owner, project.ID, episode.ID, clip.ID, []model.DramaRunReference{
+	if err := ValidateDramaRunReferences(owner, project.ID, episode.ID, clip.ID, "video", []model.DramaRunReference{
 		{AssetID: "image", VersionID: "image-version", StorageID: "image-storage", Role: "character", Order: 0},
 		{AssetID: "audio", VersionID: "audio-version", StorageID: "audio-storage", Role: "voice", Speaker: "Alice", Order: 1},
 		{AssetID: "audio-bob", VersionID: "audio-bob-version", StorageID: "audio-bob-storage", Role: "voice", Speaker: "Bob", Order: 2},
 	}); err != nil {
 		t.Fatalf("multi-speaker run validation: %v", err)
+	}
+	boardExpression := model.DramaBindingReference{AssetID: "expression", VersionID: "expression-version", Role: "expression", Order: 0}
+	stateExpression := model.DramaBindingReference{AssetID: "expression-state", VersionID: "expression-state-version", Role: "expression", Order: 0}
+	if _, err := save("storyboard", 0, boardExpression); err != nil {
+		t.Fatalf("storyboard expression rejected: %v", err)
+	}
+	for name, tc := range map[string]struct {
+		stage    string
+		revision int64
+		ref      model.DramaBindingReference
+	}{
+		"board in video":            {"video", 0, boardExpression},
+		"state in storyboard":       {"storyboard", 1, stateExpression},
+		"board with reference role": {"video", 0, model.DramaBindingReference{AssetID: "expression", VersionID: "expression-version", Role: "reference", Order: 0}},
+		"state with reference role": {"video", 0, model.DramaBindingReference{AssetID: "expression-state", VersionID: "expression-state-version", Role: "reference", Order: 0}},
+	} {
+		if _, err := save(tc.stage, tc.revision, tc.ref); err == nil {
+			t.Fatalf("%s accepted", name)
+		}
+	}
+	if err := ValidateDramaRunReferences(owner, project.ID, episode.ID, clip.ID, "image", []model.DramaRunReference{{AssetID: "expression", VersionID: "expression-version", StorageID: "image-storage", Role: "expression", Order: 0}}); err != nil {
+		t.Fatalf("image run expression board rejected: %v", err)
+	}
+	if err := ValidateDramaRunReferences(owner, project.ID, episode.ID, clip.ID, "video", []model.DramaRunReference{{AssetID: "expression-state", VersionID: "expression-state-version", StorageID: "image-storage", Role: "expression", Order: 0}}); err != nil {
+		t.Fatalf("video run expression state rejected: %v", err)
+	}
+	if err := ValidateDramaRunReferences(owner, project.ID, episode.ID, clip.ID, "video", []model.DramaRunReference{{AssetID: "expression", VersionID: "expression-version", StorageID: "image-storage", Role: "expression", Order: 0}}); err == nil {
+		t.Fatal("video run accepted complete expression board")
 	}
 	if _, err := save("video", 0, image); err == nil {
 		t.Fatal("stale insert accepted")
@@ -160,11 +205,14 @@ func TestDramaBindingLifecycle(t *testing.T) {
 	if err != nil || cleared.ID != bound.ID || cleared.Revision != 3 || cleared.References == nil || len(cleared.References) != 0 {
 		t.Fatalf("clear: %+v %v", cleared, err)
 	}
+	if expressionBound, err := save("video", 3, stateExpression); err != nil || expressionBound.Revision != 4 {
+		t.Fatalf("video expression state rejected: %+v %v", expressionBound, err)
+	}
 	archived := true
 	if _, err := UpdateCurrentUserDramaClip(owner, project.ID, episode.ID, clip.ID, DramaClipInput{Archived: &archived, ExpectedRevision: clip.Revision}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := save("video", 3, video); err == nil {
+	if _, err := save("video", 4, video); err == nil {
 		t.Fatal("archived Clip accepted write")
 	}
 }

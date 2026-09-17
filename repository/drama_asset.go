@@ -46,7 +46,11 @@ func dramaAssetProject(tx *gorm.DB, userID, projectID string) error {
 }
 
 func dramaAssetParent(tx *gorm.DB, asset model.DramaAsset, parentID string) error {
+	if asset.Kind == "expression" && parentID == "" {
+		return ErrDramaAssetParent
+	}
 	seen := map[string]bool{asset.ID: true}
+	direct := true
 	for parentID != "" {
 		if seen[parentID] {
 			return ErrDramaAssetParent
@@ -59,6 +63,10 @@ func dramaAssetParent(tx *gorm.DB, asset model.DramaAsset, parentID string) erro
 		if parent.Archived {
 			return ErrDramaAssetParent
 		}
+		if direct && asset.Kind == "expression" && parent.Kind != "character" {
+			return ErrDramaAssetParent
+		}
+		direct = false
 		parentID = parent.ParentID
 	}
 	return nil
@@ -179,7 +187,21 @@ func CreateDramaAssetVersion(userID, projectID, assetID string, revision int64, 
 		}
 		isImage := strings.HasPrefix(storage.MimeType, "image/")
 		isAudio := strings.HasPrefix(storage.MimeType, "audio/")
-		if (asset.Kind == "voice" && !isAudio) || (asset.Kind != "voice" && asset.Kind != "reference" && !isImage) || (asset.Kind == "reference" && !isImage && !isAudio && !strings.HasPrefix(storage.MimeType, "video/")) {
+		isExpressionState := false
+		if asset.Kind == "reference" && asset.ParentID != "" {
+			var parent model.DramaAsset
+			parentErr := tx.Select("kind").Where("id = ? AND user_id = ? AND project_id = ?", asset.ParentID, userID, projectID).First(&parent).Error
+			if parentErr == nil {
+				isExpressionState = parent.Kind == "expression"
+			} else if !errors.Is(parentErr, gorm.ErrRecordNotFound) {
+				return parentErr
+			}
+		}
+		invalidMedia := asset.Kind == "voice" && !isAudio || asset.Kind != "voice" && asset.Kind != "reference" && !isImage
+		if asset.Kind == "reference" {
+			invalidMedia = isExpressionState && !isImage || !isExpressionState && !isImage && !isAudio && !strings.HasPrefix(storage.MimeType, "video/")
+		}
+		if invalidMedia {
 			return ErrDramaAssetMedia
 		}
 		version.AssetID = assetID

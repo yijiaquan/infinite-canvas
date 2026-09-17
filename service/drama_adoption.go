@@ -64,6 +64,42 @@ func AdoptDramaOutput(ctx context.Context, p, e, c string, input DramaAdoptionIn
 	return value, dramaError(err)
 }
 
+// AutoAdoptLatestDramaOutput makes a completed image or video run the current
+// formal pick. Prior outputs remain in run history and can be selected again.
+func AutoAdoptLatestDramaOutput(ctx context.Context, run model.DramaRun) (model.DramaAdoption, error) {
+	if (run.Kind != "image" && run.Kind != "video") || run.Status != "completed" || len(run.Outputs) == 0 {
+		return model.DramaAdoption{}, errors.New("没有可自动采用的输出")
+	}
+	u, err := dramaUser(ctx)
+	if err != nil {
+		return model.DramaAdoption{}, err
+	}
+	if u != run.UserID {
+		return model.DramaAdoption{}, errors.New("运行不属于当前账号")
+	}
+	output := run.Outputs[0]
+	object, err := repository.GetStorageObject(output.StorageID)
+	wantMime := "image/"
+	if run.Kind == "video" {
+		wantMime = "video/"
+	}
+	if err != nil || object.CreatedBy != u || object.DeletedAt != "" || !strings.HasPrefix(object.MimeType, wantMime) {
+		return model.DramaAdoption{}, errors.New("自动采用媒体不存在或类型不匹配")
+	}
+	clips, err := repository.ListDramaClips(u, run.ProjectID, run.EpisodeID)
+	if err != nil {
+		return model.DramaAdoption{}, dramaError(err)
+	}
+	for _, clip := range clips {
+		if clip.ID == run.ClipID && !clip.Archived {
+			value := model.DramaAdoption{ID: uuid.NewString(), UserID: u, ProjectID: run.ProjectID, EpisodeID: run.EpisodeID, ClipID: run.ClipID, Kind: run.Kind, RunID: run.ID, StorageID: output.StorageID, ClipRevision: clip.Revision, UpdatedAt: now()}
+			stored, err := repository.SaveLatestDramaAdoption(value)
+			return stored, dramaError(err)
+		}
+	}
+	return model.DramaAdoption{}, errors.New("当前 Clip 不存在或已归档")
+}
+
 func ExportDramaEpisode(ctx context.Context, p, e string, partial bool) (*os.File, error) {
 	clips, err := CurrentUserDramaClips(ctx, p, e)
 	if err != nil {

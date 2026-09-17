@@ -41,7 +41,7 @@ func UpdateCurrentDramaBinding(ctx context.Context, p, e, c, stage string, input
 		input.References = []model.DramaBindingReference{}
 	}
 	seen := map[string]bool{}
-	roles := map[string]bool{"character": true, "scene": true, "prop": true, "reference": true, "voice": true, "video_reference": true}
+	roles := map[string]bool{"character": true, "scene": true, "prop": true, "reference": true, "expression": true, "voice": true, "video_reference": true}
 	for i, ref := range input.References {
 		key := ref.AssetID + "\x00" + ref.VersionID + "\x00" + ref.Role + "\x00" + ref.Speaker
 		if ref.Order != i || ref.AssetID == "" || ref.VersionID == "" || !roles[ref.Role] || seen[key] {
@@ -68,7 +68,7 @@ func dramaBindingError(err error) error {
 		return dramaError(err)
 	}
 	switch err.Error() {
-	case "输入必须指定唯一素材版本、用途和连续顺序", "故事板只接受图片输入", "声音需要实际说话者", "输入用途与媒体类型不一致", "声音必须绑定本 Clip 实际说话者", "已归档资产只能保留原有引用", "回收站中的 Clip 不能修改输入":
+	case "输入必须指定唯一素材版本、用途和连续顺序", "故事板只接受图片输入", "声音需要实际说话者", "输入用途与媒体类型不一致", "人物表情用途与制作阶段或资产类型不匹配", "完整人物表情板不能作为其他用途输入", "人物表情单状态参考必须使用人物表情用途", "声音必须绑定本 Clip 实际说话者", "已归档资产只能保留原有引用", "回收站中的 Clip 不能修改输入":
 		return safeMessageError{message: err.Error()}
 	default:
 		return err

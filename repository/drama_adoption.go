@@ -84,6 +84,49 @@ func SaveDramaAdoption(value model.DramaAdoption, expected int64) (model.DramaAd
 	return value, err
 }
 
+// SaveLatestDramaAdoption advances the current pick without requiring a browser-side
+// revision. It is reserved for the durable run worker after a new media result exists.
+func SaveLatestDramaAdoption(value model.DramaAdoption) (model.DramaAdoption, error) {
+	db, err := DB()
+	if err != nil {
+		return value, err
+	}
+	err = db.Transaction(func(tx *gorm.DB) error {
+		var clip model.DramaClip
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND user_id = ? AND project_id = ? AND episode_id = ?", value.ClipID, value.UserID, value.ProjectID, value.EpisodeID).First(&clip).Error; err != nil {
+			return err
+		}
+		if clip.Archived || clip.Revision != value.ClipRevision {
+			return ErrDramaRevisionConflict
+		}
+		fingerprint, err := dramaAdoptionFingerprint(tx, value)
+		if err != nil {
+			return err
+		}
+		value.ContentFingerprint = fingerprint
+		var current model.DramaAdoption
+		err = tx.Where("user_id = ? AND clip_id = ? AND kind = ?", value.UserID, value.ClipID, value.Kind).First(&current).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			value.Revision = 1
+			return tx.Create(&value).Error
+		}
+		if err != nil {
+			return err
+		}
+		value.ID = current.ID
+		value.Revision = current.Revision + 1
+		result := tx.Model(&model.DramaAdoption{}).Where("id = ? AND revision = ?", current.ID, current.Revision).Updates(map[string]any{"run_id": value.RunID, "storage_id": value.StorageID, "clip_revision": value.ClipRevision, "content_fingerprint": value.ContentFingerprint, "revision": value.Revision, "updated_at": value.UpdatedAt})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return ErrDramaRevisionConflict
+		}
+		return nil
+	})
+	return value, err
+}
+
 type dramaFingerprintNode struct {
 	ID       string         `json:"id"`
 	Type     string         `json:"type"`

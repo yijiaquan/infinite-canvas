@@ -1,6 +1,6 @@
 ---
 name: ai-drama-studio-workflow
-description: Coordinate a complete AI-drama project through fixed studio roles, role-scoped Skill loading, lightweight handoffs, and director review. Use for full production, long-running production, resuming an existing drama, or when responsibilities have begun to drift; skip novel-only work and isolated node/model tests.
+description: Coordinate complete AI-drama production through fixed studio roles, per-turn stage routing, lightweight handoffs, and director review. Use after the AI-drama router selects studio coordination for full production, long-running work, resume, stage transition, or responsibility drift; skip novel-only work and isolated node/model tests.
 ---
 
 # AI Drama Studio Workflow
@@ -8,6 +8,18 @@ description: Coordinate a complete AI-drama project through fixed studio roles, 
 本 Skill 只负责“现在由哪个岗位工作、应该读取什么、交付给谁”。专业方法仍由现有 Story、Series、Visual、Prompt、Video、Audio 和 Short Skills 定义。本 Skill 不复制专业规则，不控制 ComfyUI，也不创建 Lock、Gate、任务包或审批账本。
 
 开始生产先读取 [Infinite Canvas 生产契约](references/infinite-canvas-production-contract.md)。数据库和已安装 MCP 是唯一生产状态入口，旧项目文档只用于来源与历史查证。
+
+## Per-Turn Skill Routing
+
+每次收到主人新消息时，先用本 Skill 判断当前请求属于哪个制作阶段和岗位，再进行回复、提问、读写或工具操作。不能因为上一轮已经使用某个 Skill，就默认本轮仍适用。
+
+1. 结合本轮明确请求、当前 Canvas 阶段、所选对象和 current 生产状态，选择本轮最小必要 Skill 集；先选流程/岗位 Skill，再选对应专业 Skill。
+2. 只要本轮涉及专业判断或执行，必须在第一次实质操作前实际读取当前专业 Skill 的 `SKILL.md`；进入新阶段、任务范围改变、上下文恢复或发现规则漂移时必须重新读取。不得凭 Skill 名称、旧对话或记忆代替当前内容。
+3. 同一轮只加载完成任务所需的入口与条件参考，不扫描全部 Skills。一个请求跨越依赖阶段时按生产顺序逐段路由，到达该阶段时再读取其专业 Skill。
+4. 纯问候、确认收到、停止/取消、只报告已经取得的工具结果等不含专业判断的消息，由本路由 Skill 直接处理，不为形式调用无关专业 Skill。
+5. 每轮路由是内部执行步骤，不要求向主人输出 Skill 清单、路由报告或征求例行批准；只有无法确定业务阶段且不同选择会改变结果时才询问。
+
+默认映射沿用仓库 `AGENTS.md` 的 Automatic Skill Routing；本 Skill 负责确保该映射在每个用户回合重新执行，专业 Skill 仍负责具体方法。
 
 ## Role Activation
 

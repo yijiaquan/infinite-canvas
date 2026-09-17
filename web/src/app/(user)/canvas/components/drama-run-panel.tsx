@@ -190,7 +190,7 @@ export function DramaRunPanel({
                                                 })
                                             }
                                         >
-                                            {adoptions.some((item) => item.storageId === output.storageId) ? "复核采用" : "采用候选"}
+                                            {adoptions.some((item) => item.storageId === output.storageId) ? "当前使用" : "切换到此版本"}
                                         </Button>
                                     </div>
                                 ))}
@@ -232,6 +232,7 @@ export function DramaRunPanel({
                                     <li key={`${item.presentationOrder}:${item.tag}`}>
                                         <Tag>{item.tag}</Tag>
                                         {{ image: "图片参考", video: "视频画面", embedded_audio: "视频内嵌音轨", audio: "人物声音" }[item.kind]} · 输入 {item.referenceOrder + 1}
+                                        {preview.references[item.referenceOrder]?.role === "expression" ? " · 人物表情" : ""}
                                         {item.speaker ? ` · ${item.speaker}` : ""}
                                     </li>
                                 ))}

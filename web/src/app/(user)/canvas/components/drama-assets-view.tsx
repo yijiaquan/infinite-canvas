@@ -10,12 +10,20 @@ import { DramaTextArea } from "./drama-text-area";
 
 const kinds = [
     { value: "character", label: "人物与造型" },
+    { value: "expression", label: "人物表情板" },
     { value: "scene", label: "场景" },
     { value: "prop", label: "道具" },
     { value: "voice", label: "声音" },
     { value: "reference", label: "其他参考" },
 ];
 const blank = { title: "", kind: "character" as DramaAsset["kind"], parentId: "", description: "", defaultVoiceVersionId: "" };
+
+function parentLabel(asset: DramaAsset, catalog: DramaAssetCatalog) {
+    if (asset.kind === "character") return "所属人物";
+    if (asset.kind === "expression") return "所属人物/造型";
+    if (asset.kind === "reference" && catalog.assets.some((item) => item.id === asset.parentId && item.kind === "expression")) return "所属表情板";
+    return "上级资产";
+}
 
 export function DramaAssetsView({ token, projectId }: { token: string; projectId: string }) {
     const { modal } = App.useApp();
@@ -164,7 +172,11 @@ export function DramaAssetsView({ token, projectId }: { token: string; projectId
                                 </Button>
                             </div>
                             <p className="mb-4 whitespace-pre-wrap break-words">{selected.description}</p>
-                            {selected.parentId && <p className="mb-4">所属人物：{catalog.assets.find((asset) => asset.id === selected.parentId)?.title}</p>}
+                            {selected.parentId && (
+                                <p className="mb-4">
+                                    {parentLabel(selected, catalog)}：{catalog.assets.find((asset) => asset.id === selected.parentId)?.title}
+                                </p>
+                            )}
                             <Button disabled={busy || selected.archived} icon={<Plus size={15} />} onClick={() => setPicker(true)}>
                                 从素材库添加版本
                             </Button>
@@ -219,6 +231,7 @@ export function DramaAssetsView({ token, projectId }: { token: string; projectId
                 onOk={() =>
                     void perform(async () => {
                         if (!draft.title.trim()) throw new Error("请填写资产名称");
+                        if (draft.kind === "expression" && !draft.parentId) throw new Error("请选择表情板所属的人物或造型");
                         const { kind, ...editable } = draft;
                         const saved = editing === "new" ? await createDramaAsset(token, projectId, { ...editable, kind }) : await updateDramaAsset(token, projectId, selectedId, { ...editable, expectedRevision: selected!.revision });
                         setSelectedId(saved.id);
@@ -240,6 +253,27 @@ export function DramaAssetsView({ token, projectId }: { token: string; projectId
                                 allowClear
                                 value={draft.parentId || undefined}
                                 options={catalog.assets.filter((asset) => asset.kind === "character" && !asset.archived && asset.id !== selectedId).map((asset) => ({ value: asset.id, label: asset.title }))}
+                                onChange={(parentId) => setDraft({ ...draft, parentId: parentId || "" })}
+                            />
+                        </Form.Item>
+                    )}
+                    {draft.kind === "expression" && (
+                        <Form.Item label="所属人物/造型" required>
+                            <Select
+                                value={draft.parentId || undefined}
+                                placeholder="选择人物或具体造型"
+                                options={catalog.assets.filter((asset) => asset.kind === "character" && !asset.archived).map((asset) => ({ value: asset.id, label: asset.title }))}
+                                onChange={(parentId) => setDraft({ ...draft, parentId })}
+                            />
+                        </Form.Item>
+                    )}
+                    {draft.kind === "reference" && (
+                        <Form.Item label="所属表情板（单状态参考可选）">
+                            <Select
+                                allowClear
+                                value={draft.parentId || undefined}
+                                placeholder="普通参考无需选择"
+                                options={catalog.assets.filter((asset) => asset.kind === "expression" && !asset.archived).map((asset) => ({ value: asset.id, label: asset.title }))}
                                 onChange={(parentId) => setDraft({ ...draft, parentId: parentId || "" })}
                             />
                         </Form.Item>

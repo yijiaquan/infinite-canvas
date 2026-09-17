@@ -4,7 +4,7 @@ export type DramaAsset = {
     id: string;
     projectId: string;
     title: string;
-    kind: "character" | "scene" | "prop" | "voice" | "reference";
+    kind: "character" | "expression" | "scene" | "prop" | "voice" | "reference";
     parentId: string;
     description: string;
     adoptedVersionId: string;

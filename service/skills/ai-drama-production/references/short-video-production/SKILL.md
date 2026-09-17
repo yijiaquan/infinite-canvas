@@ -1,6 +1,6 @@
 ---
 name: short-video-production
-description: Business-first workflow for creating a complete short video from topic or script through planning, media production, Bcut editing, review, export, and learning. Use for ordinary short video and as the umbrella route for serialized AI drama. This Skill prioritizes finished content without exposing internal checks as owner stages.
+description: Business-first workflow for ordinary short videos and for AI-drama delivery, Bcut editing, full-cut review, export, and learning. In serialized AI drama use it only for the overall delivery route or editing/finalization stage; ai-drama-studio-workflow remains the production router. This Skill prioritizes finished content without exposing internal checks as owner stages.
 ---
 
 # Short Video Production

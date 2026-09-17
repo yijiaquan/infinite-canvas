@@ -62,7 +62,7 @@ func validateDramaAsset(input DramaAssetInput, create bool) error {
 	}
 	if create {
 		switch input.Kind {
-		case "character", "scene", "prop", "voice", "reference":
+		case "character", "scene", "prop", "voice", "reference", "expression":
 		default:
 			return safeMessageError{message: "资产类型无效"}
 		}

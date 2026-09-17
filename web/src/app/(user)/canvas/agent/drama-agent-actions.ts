@@ -201,7 +201,12 @@ export async function executeDramaAgentAction(action: CanvasAgentAction, context
                 const catalog = await context.readAssets();
                 const eligibleSpeakers = dramaClipDialogueSpeakers(clip.shots);
                 for (const ref of args.references as Array<{ assetId: string; versionId: string; role: string; speaker: string }>) {
-                    if (!catalog.assets.some((item) => item.id === ref.assetId && !item.archived) || !catalog.versions.some((item) => item.id === ref.versionId && item.assetId === ref.assetId)) throw new Error("绑定引用的资产或版本不存在");
+                    const asset = catalog.assets.find((item) => item.id === ref.assetId && !item.archived);
+                    if (!asset || !catalog.versions.some((item) => item.id === ref.versionId && item.assetId === ref.assetId)) throw new Error("绑定引用的资产或版本不存在");
+                    if (ref.role === "expression") {
+                        const valid = args.stage === "storyboard" ? asset.kind === "expression" : asset.kind === "reference" && catalog.assets.some((item) => item.id === asset.parentId && item.kind === "expression");
+                        if (!valid) throw new Error(args.stage === "storyboard" ? "故事板人物表情必须绑定完整表情板" : "视频人物表情必须绑定表情板下属的干净单状态参考");
+                    }
                     if (ref.role === "voice" && !eligibleSpeakers.includes(ref.speaker)) {
                         throw new Error(eligibleSpeakers.length ? `Clip ${clip.title} 没有 ${ref.speaker} 的非空对白；可绑定的说话者：${eligibleSpeakers.join("、")}` : `Clip ${clip.title} 没有非空对白，不能绑定 Voice`);
                     }

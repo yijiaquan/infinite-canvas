@@ -157,7 +157,10 @@ func ClaimDramaRun(id string) (bool, error) {
 			return err
 		}
 		var active int64
-		if err := tx.Model(&model.DramaRun{}).Where("concurrency_key = ? AND status IN ?", run.ConcurrencyKey, []string{"preparing", "submitting", "running", "unknown"}).Count(&active).Error; err != nil {
+		// An unknown run has an intentionally unresolved submission result. It must
+		// remain available for manual reconciliation, but it has no confirmed live
+		// ComfyUI task and must not permanently consume the execution slot.
+		if err := tx.Model(&model.DramaRun{}).Where("concurrency_key = ? AND status IN ?", run.ConcurrencyKey, []string{"preparing", "submitting", "running"}).Count(&active).Error; err != nil {
 			return err
 		}
 		if active >= int64(run.ConcurrencyLimit) {

@@ -120,7 +120,7 @@ func createOrPreviewDramaRun(w http.ResponseWriter, r *http.Request, p, e, c str
 		Fail(w, "模型渠道不可用")
 		return
 	}
-	if err = service.ValidateDramaRunReferences(r.Context(), p, e, c, input.References); err != nil {
+	if err = service.ValidateDramaRunReferences(r.Context(), p, e, c, input.Kind, input.References); err != nil {
 		Fail(w, err.Error())
 		return
 	}

@@ -74,7 +74,7 @@ func RecheckCurrentDramaRun(ctx context.Context, p, e, c, id string) (model.Dram
 	}
 	return CurrentDramaRun(ctx, p, e, c, id)
 }
-func ValidateDramaRunReferences(ctx context.Context, p, e, c string, refs []model.DramaRunReference) error {
+func ValidateDramaRunReferences(ctx context.Context, p, e, c, runKind string, refs []model.DramaRunReference) error {
 	u, err := dramaUser(ctx)
 	if err != nil {
 		return err
@@ -113,7 +113,7 @@ func ValidateDramaRunReferences(ctx context.Context, p, e, c string, refs []mode
 			return errors.New("参考素材不存在或不属于当前账号")
 		}
 		switch r.Role {
-		case "storyboard", "character", "scene", "prop", "reference":
+		case "storyboard", "character", "scene", "prop", "reference", "expression":
 			if !strings.HasPrefix(obj.MimeType, "image/") {
 				return errors.New("图片用途不能绑定音视频素材")
 			}
@@ -128,11 +128,26 @@ func ValidateDramaRunReferences(ctx context.Context, p, e, c string, refs []mode
 		default:
 			return errors.New("参考用途无效")
 		}
+		if r.Role == "expression" && (r.AssetID == "" || r.VersionID == "") {
+			return errors.New("人物表情用途必须绑定正式资产版本")
+		}
 		if r.AssetID != "" || r.VersionID != "" {
 			a, ok := assetMap[r.AssetID]
 			v, exists := versionMap[r.VersionID]
 			if !ok || !exists || v.AssetID != a.ID || v.StorageID != r.StorageID {
 				return errors.New("素材版本与当前项目或文件不匹配")
+			}
+			parent := assetMap[a.ParentID]
+			isExpressionState := a.Kind == "reference" && parent.Kind == "expression"
+			if r.Role == "expression" {
+				valid := runKind == "image" && a.Kind == "expression" || runKind == "video" && isExpressionState
+				if !valid {
+					return errors.New("人物表情用途与生成阶段或资产类型不匹配")
+				}
+			} else if a.Kind == "expression" {
+				return errors.New("完整人物表情板不能作为其他用途输入")
+			} else if isExpressionState {
+				return errors.New("人物表情单状态参考必须使用人物表情用途")
 			}
 		}
 		if r.Role == "voice" && (!strings.HasPrefix(obj.MimeType, "audio/") || !speakers[r.Speaker]) {

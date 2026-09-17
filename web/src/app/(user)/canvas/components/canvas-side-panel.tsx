@@ -317,7 +317,7 @@ function ProjectAssetsTab({ token, projectId, theme, onAssetDragStart, onAssetDr
 function projectAssetMediaKind(asset: DramaAsset, version?: DramaAssetVersion): "image" | "video" | "audio" | null {
     const family = version?.mimeType?.split("/")[0];
     if (family === "image" || family === "video" || family === "audio") return family;
-    return asset.kind === "voice" ? "audio" : asset.kind === "character" || asset.kind === "scene" || asset.kind === "prop" ? "image" : null;
+    return asset.kind === "voice" ? "audio" : asset.kind === "character" || asset.kind === "expression" || asset.kind === "scene" || asset.kind === "prop" ? "image" : null;
 }
 
 function projectAssetPayload(asset: DramaAsset, version: DramaAssetVersion, kind: "image" | "video" | "audio"): InsertAssetPayload {

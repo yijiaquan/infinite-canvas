@@ -1,6 +1,6 @@
 ---
 name: minimax-h3-video-production
-description: Produce, repair, review, and hand off AI-video Clips using the current local MiniMax H3 route. Use after story, visual, audio, and prompt preparation for Ref2VA multi-Shot Clips, conditional FL2VA endpoint tests, model-specific input roles, dynamic performance, continuity, native dialogue, and media QA.
+description: Produce, repair, review, and hand off AI-video Clips using the current local MiniMax H3 route. Use after accepted story, current visual assets, approved director board, prompt compilation, and any required Voice/native-dialogue preparation; remaining audio post follows generated video. Covers Ref2VA multi-Shot Clips, conditional FL2VA tests, bindings, submission, dynamic performance, continuity, native dialogue, and media QA.
 ---
 
 # AI Video Production
@@ -29,7 +29,7 @@ description: Produce, repair, review, and hand off AI-video Clips using the curr
 
 ## Inputs
 
-完整导演板必须在本次执行预览中成为首个 Picture，随后连接实际出镜人物的完整身份板、当前 Location 场景板及实际出现且影响连续性的关键道具版本；Voice 只关联实际 Speaker。引用使用数据库 assetId/versionId/storageId 与 role/order/speaker，不使用文本提及解析。关系锚点或白模预演仅在真实保真风险存在时加入。Codex 编写语义正文与结构化引用，官方媒体标签仅由预览/提交编译器生成；草稿或绑定变化后重核当前 Prompt，不改已提交快照。适配层已加入导演板时不要重复绑定它。
+完整导演板必须在本次执行预览中成为首个 Picture，随后依次连接实际出镜人物的完整身份板、关键近景所需单状态表情参考、当前 Location 场景板及实际出现且影响连续性的关键道具版本；Voice 只关联实际 Speaker。引用使用数据库 assetId/versionId/storageId 与 role/order/speaker，不使用文本提及解析。完整 `expression` 人物表情板只能绑定上游导演板节点，禁止直接进入 H3；视频的 `role: "expression"` 只接受父级为表情板的单状态图片 `reference`。关系锚点或白模预演仅在真实保真风险存在时加入。Codex 编写语义正文与结构化引用，官方媒体标签仅由预览/提交编译器生成；草稿或绑定变化后重核当前 Prompt，不改已提交快照。适配层已加入导演板时不要重复绑定它。
 
 一个 H3 Clip 需要：
 
@@ -39,9 +39,9 @@ description: Produce, repair, review, and hand off AI-video Clips using the curr
 - 当前项目选择 Blender 白模预演时，已写入共享语义 brief 的摄影/调度合同，以及通过 QA 的同 Shot `*_reference.mp4`；该视频必须作为 H3 `<Video 1>`/`video_1_frames` 输入，仅控制相机、调度、动作节拍和空间拓扑；
 - 对双人、门口、交接、揭示、追逐、打斗、武器或技能攻击、或群像：Shot 功能、唯一主状态变化、行动主导者、受控反应和下一 Shot 交接；三人以上、围堵或队列还要给出焦点人物/具名配角相对命名锚点的区域与朝向、每个 `Crowd-*` 簇的人数/区域/整体朝向/密度、入口通道、功能关系/空间权限和唯一允许重排；冲突/技能 Shot 还要给出双方距离/朝向/重心、关键物或能力源头、作用路径/目标范围、可见后果与终态；
 - 同场多 Shot 或路径动作的覆盖与交接：观众必须读到的事实、相对上一镜的可读变化、切点理由，以及人物相对锚点的位置/朝向/行动阶段和道具归属如何进入下一镜；跨镜连接道具再提供归属者、端点 A/端点 B、路径/余量或滑动方式与当前模式；
-- 当前出镜人物按实际重要性连接各自的完整身份板；不为正常 H3 Clip 派生或生成单视角人物图。身份板只控制脸、发型、身体比例、服装和固定配饰，不控制板内中性姿态、表情、白底或排版。当前 Location 连接完整场景板，控制同一地点的拓扑、固定锚点、入口、主光和多方向关系。关键道具连接完整道具板，控制形制、材质、数量、机制和当前 State；连接道具还必须固定归属者、两端、路径与模式。故事板继续负责当前空间中的实际站位、镜头、动作和状态交接；
+- 当前出镜人物按实际重要性连接各自的完整身份板；不为正常 H3 Clip 派生或生成常规单视角人物图。身份板只控制脸、发型、身体比例、服装和固定配饰，不控制板内中性姿态、表情、白底或排版。当前 Location 连接完整场景板，控制同一地点的拓扑、固定锚点、入口、主光和多方向关系。关键道具连接完整道具板，控制形制、材质、数量、机制和当前 State；连接道具还必须固定归属者、两端、路径与模式。故事板继续负责当前空间中的实际站位、镜头、动作和状态交接；
 - Scene Bible 中的独立 Top-Down、Anchor 表、Blocking Zone、Camera Coverage 或整套 View Library 不作为 H3 图片槽批量输入。它们先被编译进完整分镜导演板、Camera Zone、屏幕方向和可见 Anchor；当前完整场景板仍作为常规场景 Picture 输入，单独 `Location + View` 不再作为常规补图。
-- 当前 Shot 确有近景微表情或复杂情绪弧风险时，先确认制作拆解已有角色表演语言和当前 Clip 表演曲线，完整导演板对应 Panel 已写清触发、眼神/聚焦、眼睑、眉间、嘴唇、下颌、呼吸、面部张力、身体协同与结束变化，并继续使用完整身份板保持身份。完整表演板只服务上游制板；只有真实视频 QA 反复证明该近景无法从整板继承时，才可追加一张限定当前 Clip/Shot 的干净单状态表演参考；
+- 当前 Shot 确有近景微表情或复杂情绪弧风险时，先确认制作拆解已有角色表演语言和当前 Clip 表演曲线，完整导演板对应 Panel 已写清触发、眼神/聚焦、眼睑、眉间、嘴唇、下颌、呼吸、面部张力、身体协同与结束变化，并继续使用完整身份板保持身份。完整 `expression` 表情板只服务上游制板；制作拆解已标记的关键近景、特写或大特写可在首次生成前追加一张限定当前 Clip/Shot 的干净单状态子参考，真实视频 QA 返修也可使用；
 - 当前 Project / Scene Look、Color State、可见 Light ID 与 Lighting State。完整电影 Look Board 只服务上游完整分镜导演板，不直接进入 H3；整板未能可靠承载综合色彩时先修整板，不用额外板式图片补救。Look 只控制肤色、综合色彩关系、阴影/高光、黑位、材质响应和强调色职责，不控制身份、地理、道具、动作或构图；
 - 仅本 H3 Clip 实际各 Shot 中实际发声者的 Voice 样本和声音方案（有对白时）。Picture、Audio、Subject、Speaker 分别编号：可见说话者的 Audio 指向其 Subject 与 Speaker；没有可见实体的画外音、旁白、广播或系统声只绑定 Audio 与 Speaker，不得为了音频额外创建 Subject；
 - 由 Prompt Skill 整理的视觉、动作、声音和连续性语义 brief；
@@ -49,7 +49,7 @@ description: Produce, repair, review, and hand off AI-video Clips using the curr
 
 声音方案逐 Shot 写 `AMB=延续/进入/退出 + 可听空间锚点`、与可见事件同步的 Foley/SFX、声源和精确 Line（如有），以及交给下一 Shot 的声音状态。相邻同场 Shot 默认继承底声和相对空间距离；只有门、距离、机器、天气或场景确实变化时改变。`无台词` 不传 Voice，但仍保留必要 AMB/Foley/SFX。非画内 BGM 只作为 `none / 延续 / 进入 / 退出 / 为对白让路` 的时间线意图交给必剪，不让每个 H3 Shot 烧入并重开配乐；画内音乐才属于该 Shot 声源。
 
-每个参考只控制一个明确层。一个 H3 Clip 是一条同场、连续时间、按实际节奏定时的请求。Ref2VA 以完整分镜导演故事板作为主 `<Picture 1>`；随后按“实际出镜主角身份板 → 其他实际出镜角色身份板 → 当前完整场景板 → 实际关键道具板”的顺序连接 `<Picture 2>` 至 `<Picture 9>`。故事板控制镜头计划，身份板控制人物身份与 Look，场景板控制空间拓扑与固定锚点，道具板控制形制、机制和 State。超出九张时优先保留故事板、主角身份板和当前场景板，再按剧情风险选择其他身份板与关键道具板。不传各 Panel 裁图、单视角派生图、重复图片、上一条成片原始尾帧或无职责的视频。
+每个参考只控制一个明确层。一个 H3 Clip 是一条同场、连续时间、按实际节奏定时的请求。Ref2VA 以完整分镜导演故事板作为主 `<Picture 1>`；随后按“实际出镜主角身份板 → 其他实际出镜角色身份板 → 关键近景单状态表情参考 → 当前完整场景板 → 实际关键道具板 → 其他必要参考”的顺序连接 `<Picture 2>` 至 `<Picture 9>`。故事板控制镜头计划，身份板控制人物身份与 Look，单状态表情参考只控制指定 Shot 的微表情与身体反应语言，场景板控制空间拓扑与固定锚点，道具板控制形制、机制和 State。超出九张时优先保留故事板、实际出镜身份板和当前场景板；表情参考只有承载关键剧情信息时才优先于次要道具或一般参考。不传完整宫格表情板、各 Panel 裁图、常规单视角派生图、重复图片、上一条成片原始尾帧或无职责的视频。
 
 完整分镜故事板同时承担当前 Clip 的主要 Look 基线。完整 Look Board 不作为额外 H3 Picture；若整板未可靠覆盖综合色彩，先用 current Look Board 修正或重做整板。换机位、景别或人物位置不会重置 Project / Scene Look，只有已声明 Color State 或有动机 Lighting State 可以改变色光关系。
 
@@ -57,11 +57,11 @@ description: Produce, repair, review, and hand off AI-video Clips using the curr
 
 参考槽数量不是固定模板。每个 H3 Clip 都从所选模式、实际出镜/出声内容和 Shot 覆盖重新计算输入，只连接必要且内容互不重复的媒体；空槽直接断开或省略。H3-03 的公开槽位按当前 UI 图为准；H3-02 的开场帧、落点帧和提示字段同样只按 freshly-read UI 图绑定。图片、视频帧和音频的上游来源只按所选 UI 图的公开输入配置，不手工搭建历史 `ref_*` 接线。当前 UI 节点里的示例 Prompt 只是占位内容，每次请求必须用当前 Clip 完整重编译的 Prompt 覆盖。最终标签、实际媒体、顺序、职责及适用 Shot 必须逐项一致。
 
-`subject_definitions` 先把人物、场景、道具或表演图片抽象为稳定的 `<Subject N>`；H3 的后续段落跟踪这个 Subject。`<Picture 1>` 只作为完整分镜导演规划锚点；其他 Picture 标签只在 Subject 定义或高风险状态锚点中出现。跨格连接道具对应的 Subject 要在连续动作和交接中保持同一归属者、两端、路径/余量与模式。选择白模预演时，紧邻实际 `<Video 1>` 写相机路径、调度或动作节拍职责。`retention_analysis` 和 `detailed_description` 正向声明最终成片为完整彩色电影画面，只呈现故事世界中的 Subject。
+`subject_definitions` 先把人物、场景、道具或单状态表情图片抽象为稳定的 `<Subject N>`；H3 的后续段落跟踪这个 Subject。`<Picture 1>` 只作为完整分镜导演规划锚点；其他 Picture 标签只在 Subject 定义或高风险状态锚点中出现。单状态表情参考必须在定义、retention 与实际适用 Shot 中保持同一窄职责，不得越权改变身份、动作阶段、视线目标或构图。跨格连接道具对应的 Subject 要在连续动作和交接中保持同一归属者、两端、路径/余量与模式。选择白模预演时，紧邻实际 `<Video 1>` 写相机路径、调度或动作节拍职责。`retention_analysis` 和 `detailed_description` 正向声明最终成片为完整彩色电影画面，只呈现故事世界中的 Subject。
 
 ## Choose a Mode
 
-- reference to video：默认路线。支持一个按实际时长、完整分镜故事板驱动的同场多 Shot Clip；完整故事板、完整身份板、完整场景板、按需完整道具板、高风险关系锚点和 Voice 各自承担明确职责。
+- reference to video：默认路线。支持一个按实际时长、完整分镜故事板驱动的同场多 Shot Clip；完整故事板、完整身份板、关键近景所需单状态表情参考、完整场景板、按需完整道具板、高风险关系锚点和 Voice 各自承担明确职责。
 - text to video：无需人物、地理、道具或导演板参考的简单 H3 Clip 才使用。
 - first frame to video：只在真实返修已证明必须严格控制单一开场画面时使用；它不是常规完整分镜 Ref2VA 路线。
 - first + last frame / FL2VA：按需测试或明确端点任务。只有开场状态、落点状态以及两者之间的单一连续物理过程都明确时使用；两张端点帧必须分别制作和 QA，不能把上一条 H3 成片原始尾帧自动当作下一条的开场或落点。
@@ -80,13 +80,13 @@ description: Produce, repair, review, and hand off AI-video Clips using the curr
 
 同时确认 brief 已解析当前 Look Continuity Block：同一 Scene / Color State 不因换景别、机位或人物位置而重置肤色、阴影/高光、黑位、综合色温或强调色职责；Lighting State 的亮灭、闪烁、遮挡或局部颜色变化必须来自已声明 Light ID 或当前镜内可见的新光源，不能使用无来源全局滤镜。
 
-人物 Shot 还要继承角色表演语言和当前 Clip 的非单调表演曲线，并给出身体姿态/重心、头肩手腿躯干、视线、呼吸、微表情/强度和动作阶段。表情状态名或百分比必须展开为眼球焦点、眼睑、眉间、嘴唇、下颌、呼吸/颈部张力与身体协同；表情与身体由同一触发共同变化。微表情、视线、呼吸或单个准备动作默认与主动作/对白同镜完成，不单独制造 Shot。只有切点已有真实观看价值后，才要求相邻 Shot 的 Camera / Body / Information 通常至少两项发生可读变化。
+人物 Shot 还要继承角色表演语言和当前 Clip 的非单调表演曲线。身体姿态、重心、视线、呼吸、微表情与动作阶段是内部检查维度，不是必须逐项抄入最终 Prompt 的固定清单；最终只写本镜真正可见、会改变表演结果的一两个动作或反应。微表情、视线、呼吸或单个准备动作默认与主动作/对白同镜完成，不单独制造 Shot。只有切点已有真实观看价值后，才要求相邻 Shot 的 Camera / Body / Information 通常至少两项发生可读变化。
 
 冲突、打斗和能力攻击同样不是例外：一条按实际时长规划的 H3 Clip 可以完成一条高密度、连续因果的攻防链；其中每个 Panel / 内部 Shot 只完成一轮可读的逼近、攻击/施放、格挡/闪避、命中/后果或脱离。上一 Panel 的受力、位置、装备状态、环境后果和余势必须成为下一 Panel 的起点。接触、能量和效果必须有可见源头、方向或路径、作用对象与结果；武器/法器只在声明的 Panel 中通过可见夺取、释放、损坏或状态变化改变归属。复杂连招、多人同时大动作、范围毁坏与余波分别按真实编辑边界分配给多个 Panel 或拆成多个 Clips，不能用强晃或随机运镜遮住因果。
 
 对白必须已有说话前任务、说话时行为、听者/环境反应、台词后的变化，以及画内/画外/旁白声源、语言和可容纳的时间窗口；每个 Shot 只能有一个由行动、注意力、揭示或空间关系驱动的主要摄影行为。若精确台词装不进窗口，退回 Prompt Skill 先按真实编辑点拆 Shot，不在 Video Skill 压缩台词或二次创作。
 
-对白情绪按官方结构写在 `<d>` 外：先用自然中文描述起始语气、导致情绪变化的触发、语速/音量/重音/停顿曲线，以及同步的眼神、嘴唇/下颌、呼吸和身体动作；`<d>[Chinese]…</d>` 内只保留角色真正朗读的精确原文及其正常标点。不得把 `（逐渐激动）`、`（低声）`、`[愤怒地]` 等舞台说明放进 `<d>`，避免被朗读或破坏剧本、字幕与口型的一致性。
+对白情绪按官方结构写在 `<d>` 外，但最终文本必须简洁：用一句大白话交代当前情绪、必要的语速或音量变化和一个最关键的可见动作，然后直接进入 `<d>[Chinese]…</d>`。Audio 参考只自然带出一次，例如“借用 `<Audio N>` 的音色，平静地说出”，不得写“严格参照声音身份与演绎节奏”“以自然中文口型、呼吸、停顿、目光和身体动作完成表演”等通用套话。`<d>` 内只保留角色真正朗读的精确原文及正常标点，不放舞台说明。
 
 ## Scope and Timing
 
@@ -107,7 +107,7 @@ description: Produce, repair, review, and hand off AI-video Clips using the curr
 
 H3 提示词优先使用具体、直接、可视化的描述，少写需要模型“意会”的抽象句或文学比喻。把“压迫感增强”“命运逼近”“空气凝固”“他意识到危险”等意图，展开成可见、可听的人物重心与动作、眼神和面部张力、距离与遮挡、构图占比、摄影机路径与落点、光线变化、材质/环境响应或声音事件。风格和情绪词可以保留，但不能替代其对应的画面与声音载体；也不要退化成逗号分隔的关键词堆。
 
-最终 Prompt 除 `<d>` 内的真实对白外，不得保留内部创作意图、观众目标、剧情功能、交接占位或抽象镜末结论。“上一回合/上一镜结束”“动作引出后续对白”“对白冲突已被动作触发”“观众在 N 秒内知道/明白”“镜末形成/呈现悬念、压迫、转折”等内容必须改写为人物位置、姿态、视线、手与道具关系、可见动作过程、摄影/光线/声音和可观察末态；无法从制作剧本、Shot 合同与 current 导演板解析时停止编译，不得原样复制或用引号包裹后提交。
+最终 Prompt 除 `<d>` 内的真实对白外，不得保留内部创作意图、观众目标、剧情功能、交接占位、抽象镜末结论或制作检查清单。“开场状态是”“上一回合/上一镜结束”“动作引出后续对白”“观众在 N 秒内知道/明白”等内容必须直接改写为人物正在什么位置做什么。每个 Shot 首句用具名空间锚点或明确画面区域建立人物位置；同一人物未经过可见移动、摄影机重构或有动机换轴，不得从左侧跳到“画面边缘”或另一侧。无法从制作剧本、Shot 合同与 current 导演板解析时停止编译，不得原样复制或用引号包裹后提交。
 
 ### Base Modes
 
@@ -126,7 +126,7 @@ H3 提示词优先使用具体、直接、可视化的描述，少写需要模�
 5. `overall_soundscape`；
 6. `non_diegetic_music`。
 
-保持 Picture、Video、Audio、Subject 标签和 Speaker 映射一致。每个实际连接的 `<Audio N>` 必须在 `subject_definitions` 定义，在 `summary` 概括其任务职责，在 `retention_analysis` 写明 `reference`/复用关系，并在该音频真正生效的 Shot 或声音层自然引用；Voice 音色参考必须在实际发声 Shot 明确写出“使用 `<Audio N>` 的音色/表达参考”。`retention_analysis` 不写 `(Sx)`，Speaker 只在定义绑定与目标视频的实际发声事件中使用。目标新台词由正确的 `<Subject N> (Sx)` 说出，并放在 `<d>[Language] ...</d>` 中。一次连续发言指定唯一 `dialogue_owner_shot`，完整可朗读原文只在该 Speaker 的一个 `<d>` 中出现一次；其余 Shot 只描述同一次发言的准备、中段、收束或说完后阶段与可见表演，不能出现原句、短句、关键词或引号。`summary`、`retention_analysis` 与 `overall_soundscape` 不复述可朗读文本。
+保持 Picture、Video、Audio、Subject 标签和 Speaker 映射一致。每个实际连接的 `<Audio N>` 必须在 `subject_definitions` 定义，在 `summary` 概括其任务职责，在 `retention_analysis` 写明 `reference`/复用关系，并在该音频真正生效的 Shot 自然引用一次；写成“借用 `<Audio N>` 的音色，[简短情绪]地说出”即可，不复述声音身份、演绎节奏或表演检查清单。`retention_analysis` 不写 `(Sx)`，Speaker 只在定义绑定与目标视频的实际发声事件中使用。目标新台词由正确的 `<Subject N> (Sx)` 说出，并放在 `<d>[Language] ...</d>` 中。一次连续发言指定唯一 `dialogue_owner_shot`，完整可朗读原文只在该 Speaker 的一个 `<d>` 中出现一次；其余 Shot 只描述同一次发言的准备、中段、收束或声音落下后的可见反应，不能出现原句、短句、关键词或引号。`summary`、`retention_analysis` 与 `overall_soundscape` 不复述可朗读文本。
 
 最终 Prompt 严格隔离“制作层”和“故事世界层”：导演板与各类资产板只在前三段声明来源和控制职责；`detailed_description` 的 Shot 正文不得出现板名、标题栏、编号、格线、参考小图、平面图、表格或 `<Picture N>`，只使用已定义 `<Subject N>` 写最终可见世界。无对白 Shot 只写动作、听者反应、环境声和 Foley，不出现 Voice、Audio、Speaker、`<d>`，也不使用“闭口／不要说话／无台词”等反向控制语。提交前必须通过提示词 lint，任一制作层泄露或声音职责泄露均不提交。
 

@@ -9,12 +9,22 @@ import { DramaCanvasContext } from "./drama-canvas-context";
 
 const roles = [
     { value: "character", label: "人物身份" },
+    { value: "expression", label: "人物表情" },
     { value: "scene", label: "场景" },
     { value: "prop", label: "道具" },
     { value: "reference", label: "图片参考" },
     { value: "voice", label: "说话者声音" },
     { value: "video_reference", label: "视频参考" },
 ];
+const stageRoles = {
+    storyboard: roles.filter((role) => !["voice", "video_reference"].includes(role.value)),
+    video: roles,
+};
+
+function expressionAssetMatchesStage(asset: DramaAssetCatalog["assets"][number], stage: "storyboard" | "video", catalog: DramaAssetCatalog) {
+    if (stage === "storyboard") return asset.kind === "expression";
+    return asset.kind === "reference" && catalog.assets.some((parent) => parent.id === asset.parentId && parent.kind === "expression");
+}
 export function DramaBindingEditor({
     token,
     projectId,
@@ -141,7 +151,9 @@ export function DramaBindingEditor({
                                 value={input.assetId || undefined}
                                 placeholder="选择资产"
                                 disabled={busy}
-                                options={catalog.assets.filter((item) => !item.archived || item.id === input.assetId).map((item) => ({ value: item.id, label: item.title }))}
+                                options={catalog.assets
+                                    .filter((item) => (!item.archived || item.id === input.assetId) && (input.role !== "expression" || expressionAssetMatchesStage(item, stage, catalog)))
+                                    .map((item) => ({ value: item.id, label: item.title }))}
                                 onChange={(assetId) => {
                                     const selected = catalog.assets.find((item) => item.id === assetId);
                                     patch(index, { assetId, versionId: selected?.adoptedVersionId || "" });
@@ -155,7 +167,13 @@ export function DramaBindingEditor({
                                 options={catalog.versions.filter((item) => item.assetId === input.assetId).map((item) => ({ value: item.id, label: `${item.note || item.id.slice(0, 8)}${asset?.adoptedVersionId === item.id ? " · 已采用" : ""}` }))}
                                 onChange={(versionId) => patch(index, { versionId })}
                             />
-                            <Select aria-label={`输入 ${index + 1} 用途`} value={input.role} disabled={busy} options={stage === "storyboard" ? roles.slice(0, 4) : roles} onChange={(role) => patch(index, { role })} />
+                            <Select
+                                aria-label={`输入 ${index + 1} 用途`}
+                                value={input.role}
+                                disabled={busy}
+                                options={stageRoles[stage]}
+                                onChange={(role) => patch(index, { role, ...(role === "voice" ? {} : { speaker: "" }), ...(role === "expression" && asset && !expressionAssetMatchesStage(asset, stage, catalog) ? { assetId: "", versionId: "" } : {}) })}
+                            />
                         </div>
                         {input.role === "voice" && (
                             <Select
