@@ -1,6 +1,6 @@
 {
   "package": "ai-drama-production",
-  "version": 12,
+  "version": 13,
   "files": [
     {
       "source": ".agents/skills/ai-drama-audio-post-production/assets/templates/01-voice-bible.md",
@@ -15,7 +15,7 @@
     {
       "source": ".agents/skills/ai-drama-audio-post-production/SKILL.md",
       "output": "references/ai-drama-audio-post-production/SKILL.md",
-      "sha256": "5638b8428eacf58a37e68deba40cbea44b44c4c28964838314ff746e48364ca6"
+      "sha256": "b8a60fb08f7ead735ca69ffc3e93deabfc907a0b3b0a8bd2d4c3d8363f12a9f6"
     },
     {
       "source": ".agents/skills/ai-drama-series-production/assets/templates/00-source-adaptation-brief.md",
@@ -35,7 +35,7 @@
     {
       "source": ".agents/skills/ai-drama-series-production/assets/templates/03-production-breakdown.md",
       "output": "references/ai-drama-series-production/assets/templates/03-production-breakdown.md",
-      "sha256": "ee0e36091feb1348afded6294ac4559b6df622bbcbf4b0d36e2998b53805e063"
+      "sha256": "32feaa9665ce6b3a1be159152eb0809b9ef46b544e2d8380701734caa2f5d8d3"
     },
     {
       "source": ".agents/skills/ai-drama-series-production/references/novel-to-series-writing.md",
@@ -45,7 +45,7 @@
     {
       "source": ".agents/skills/ai-drama-series-production/references/scene-bible-and-shot-package.md",
       "output": "references/ai-drama-series-production/references/scene-bible-and-shot-package.md",
-      "sha256": "0114c0c53a77cdcaaaf18c78f1a4abdf49d52fe7a3383c925f0cb7ad58c30e19"
+      "sha256": "f29dd79a5d0168b86360aa0687084420f288d8c023e19cf8d247503cf6e480f7"
     },
     {
       "source": ".agents/skills/ai-drama-series-production/references/series-engine-and-serial-continuity.md",
@@ -55,7 +55,7 @@
     {
       "source": ".agents/skills/ai-drama-series-production/SKILL.md",
       "output": "references/ai-drama-series-production/SKILL.md",
-      "sha256": "8635bc2fe18bb8911b025f99be7fc35f070556235c9f264a2861f5cb98ba17a7"
+      "sha256": "1b5c49e1769877586a5ea266c2190949feb72700a1f59a7da8e7776661b55acc"
     },
     {
       "source": ".agents/skills/ai-drama-story-writing/references/prose-to-screenplay.md",
@@ -90,7 +90,7 @@
     {
       "source": ".agents/skills/ai-drama-studio-workflow/references/infinite-canvas-production-contract.md",
       "output": "references/ai-drama-studio-workflow/references/infinite-canvas-production-contract.md",
-      "sha256": "f9de52489823d8402971556ec8b2b512f50f1019ea20c62faaa55963be36e9f3"
+      "sha256": "514e8c7d27e6fe0b88475da0f85fa747007858e93d5163ef644e9722d77bbd94"
     },
     {
       "source": ".agents/skills/ai-drama-studio-workflow/references/studio-role-cards.md",
@@ -120,7 +120,7 @@
     {
       "source": ".agents/skills/ai-drama-visual-assets/SKILL.md",
       "output": "references/ai-drama-visual-assets/SKILL.md",
-      "sha256": "98097421956a05044ad7bd36660364e6bebe2b1285fcf0ff4d2d5892c698f9e7"
+      "sha256": "85227a1825f2134108e6aa5ede0ccb0f9621e1f806890b4f4f60f67f649b121c"
     },
     {
       "source": ".agents/skills/ai-media-prompt-compiler/references/blocking-and-cut-staging.md",
@@ -130,7 +130,7 @@
     {
       "source": ".agents/skills/ai-media-prompt-compiler/references/camera-direction-playbook.md",
       "output": "references/ai-media-prompt-compiler/references/camera-direction-playbook.md",
-      "sha256": "aabe0e23b0bfae6d6abffe97dd71c664a8a183aa60e94a6359f8f7982dd08dec"
+      "sha256": "25e18b7164913cc1ffea7a02bbb45815f6a5a546f76fd0f0bf6d3cfc6afe8fab"
     },
     {
       "source": ".agents/skills/ai-media-prompt-compiler/references/character-performance-board-method.md",
@@ -145,12 +145,12 @@
     {
       "source": ".agents/skills/ai-media-prompt-compiler/references/clip-boundary-blocking-anchor.md",
       "output": "references/ai-media-prompt-compiler/references/clip-boundary-blocking-anchor.md",
-      "sha256": "db7de42f720b0a4c41b3df71c4281197dbd2cec7aa44256cc9731882129e45d1"
+      "sha256": "0b8c4a8f9bc6a203f55f07118b7d475e733f63cc35f39838da54d29f518cec5b"
     },
     {
       "source": ".agents/skills/ai-media-prompt-compiler/references/combat-and-ability-staging.md",
       "output": "references/ai-media-prompt-compiler/references/combat-and-ability-staging.md",
-      "sha256": "3cd4948431626b79bd6d990fdbbae3281e0ad9bc51e7c5b75ad694a50f0a7eb3"
+      "sha256": "b49e434794b0151fbacc66d44d80590ed080f28b01d60fa725fa7b4e4b9f1d8a"
     },
     {
       "source": ".agents/skills/ai-media-prompt-compiler/references/coverage-and-handoff.md",
@@ -160,7 +160,7 @@
     {
       "source": ".agents/skills/ai-media-prompt-compiler/references/director-panel-prompt-method.md",
       "output": "references/ai-media-prompt-compiler/references/director-panel-prompt-method.md",
-      "sha256": "4002e3d227871317679238faeff2986cf6ff42cdf7e89b7b936d2a8f01301d70"
+      "sha256": "68940ae0436050e65acae21997581f782f05acb7a59a149e39d09719d5af2702"
     },
     {
       "source": ".agents/skills/ai-media-prompt-compiler/references/identity-board-prompt-method.md",
@@ -175,12 +175,12 @@
     {
       "source": ".agents/skills/ai-media-prompt-compiler/references/look-color-continuity.md",
       "output": "references/ai-media-prompt-compiler/references/look-color-continuity.md",
-      "sha256": "e56c39602be732c8138fee3e48bdbd8d765c846126c2265e1777f7fafccae129"
+      "sha256": "6051711ca2fba9a4d3b6a6efe50d73aec8a616b0d97bf203995242ea06a04f83"
     },
     {
       "source": ".agents/skills/ai-media-prompt-compiler/references/media-acceptance-and-repair.md",
       "output": "references/ai-media-prompt-compiler/references/media-acceptance-and-repair.md",
-      "sha256": "249f8952f3a44f354c753776c872f25a7e537bd1d600b06f24bed6cca1f399c5"
+      "sha256": "58d512568679700e3282db468e01c5481d21c9b1b8aad30a1a03b6fe9a30147a"
     },
     {
       "source": ".agents/skills/ai-media-prompt-compiler/references/performance-motion-direction.md",
@@ -190,7 +190,7 @@
     {
       "source": ".agents/skills/ai-media-prompt-compiler/references/production-keyframe-shot-method.md",
       "output": "references/ai-media-prompt-compiler/references/production-keyframe-shot-method.md",
-      "sha256": "442d099b204655bddfb7b6c3ae6f7dd2cf162776835688a746298b579f0360b1"
+      "sha256": "682d4a6848690bde0232ce5b56ff4c85a59248b3479105f2342ac195d22ec7b4"
     },
     {
       "source": ".agents/skills/ai-media-prompt-compiler/references/prop-plate-prompt-method.md",
@@ -200,7 +200,7 @@
     {
       "source": ".agents/skills/ai-media-prompt-compiler/references/provider-boundaries.md",
       "output": "references/ai-media-prompt-compiler/references/provider-boundaries.md",
-      "sha256": "cbd2a5a77914465efe53745c5326604c858cb655dc04922fc10d3e3de0b0e079"
+      "sha256": "138f307b98fad535290a51b1eda88edab9e1570c28d894e45c12412569deb62e"
     },
     {
       "source": ".agents/skills/ai-media-prompt-compiler/references/static-image-reference-batch.md",
@@ -210,12 +210,12 @@
     {
       "source": ".agents/skills/ai-media-prompt-compiler/references/video-shot-semantic-template.md",
       "output": "references/ai-media-prompt-compiler/references/video-shot-semantic-template.md",
-      "sha256": "0ccdeaafecb1bbc9801cd85159f76c677ab35eb98d47ab195fd6396d700007c0"
+      "sha256": "3c6499ac49717b666e5ca13114d8e48b0883eeddd6165e00a4e6c04d7f275b1e"
     },
     {
       "source": ".agents/skills/ai-media-prompt-compiler/SKILL.md",
       "output": "references/ai-media-prompt-compiler/SKILL.md",
-      "sha256": "02d226f1e3e1ddd3077546a8ad373ad8b22224b8ebc6fc49a4110c944741b44c"
+      "sha256": "2c246b7c93e168774f3ad2ae4ad037ca45d75d0ec783c8291d937badddefad69"
     },
     {
       "source": ".agents/skills/ai-story-architecture/assets/story-architecture-card.md",
@@ -260,42 +260,62 @@
     {
       "source": ".agents/skills/blender-whitebox-previs/SKILL.md",
       "output": "references/blender-whitebox-previs/SKILL.md",
-      "sha256": "a4b42095b6945b30e3f45d70c046418685aab5cca48df5cbc4eb0fdf48c12ebd"
+      "sha256": "0e6db486018d220b2529d96538d5eec52aaff8deeca1c2d10bf26c990c789d24"
+    },
+    {
+      "source": ".agents/skills/h3-prompt-writing/references/base-en.txt",
+      "output": "references/h3-prompt-writing/references/base-en.txt",
+      "sha256": "2cfebc096a6e08370f288d468d90b60f7f9bcb938f94bf090816e910e48e75fc"
+    },
+    {
+      "source": ".agents/skills/h3-prompt-writing/references/ref-en.txt",
+      "output": "references/h3-prompt-writing/references/ref-en.txt",
+      "sha256": "1e574f356716ad55612247ffb7bbccbcdb484ad96599d63c7dca1af186b1fab7"
+    },
+    {
+      "source": ".agents/skills/h3-prompt-writing/SKILL.md",
+      "output": "references/h3-prompt-writing/SKILL.md",
+      "sha256": "cdb0c3404a287391844ba2f1a412b17823ac5fec133c74d0c52efe7115add21a"
     },
     {
       "source": ".agents/skills/minimax-h3-video-production/references/h3-fl2va-test-template.md",
       "output": "references/minimax-h3-video-production/references/h3-fl2va-test-template.md",
-      "sha256": "768e84be0beda5ddc13834d57eca175ca90f08b87283346d5cdc73ebab370241"
+      "sha256": "2b90c4724b922af96d639d5df154894193db81b662e0e319c6628da20d4fd086"
     },
     {
       "source": ".agents/skills/minimax-h3-video-production/references/h3-prompt-compilation-and-validation.md",
       "output": "references/minimax-h3-video-production/references/h3-prompt-compilation-and-validation.md",
-      "sha256": "7a3976e691c6167e3468a2fd29362c36780c10bb129b55113518bd4d21c8ef6a"
+      "sha256": "ea3d37d4c242ab1f4d03329a2ca200a2adf0eb8266ae9faf581531b430e09ee5"
     },
     {
       "source": ".agents/skills/minimax-h3-video-production/references/h3-ref2va-audio-mapping-example.md",
       "output": "references/minimax-h3-video-production/references/h3-ref2va-audio-mapping-example.md",
-      "sha256": "5b73eb16442b5311d31adb25277970037c82a4264c6444cd9ca8636055e78eeb"
+      "sha256": "2aaca221f47e4d320e0fd83b14016a52a87c345efe6d8c8a70884aacf9e8b344"
     },
     {
       "source": ".agents/skills/minimax-h3-video-production/references/h3-ref2va-final-prompt-template.md",
       "output": "references/minimax-h3-video-production/references/h3-ref2va-final-prompt-template.md",
-      "sha256": "ec0cf907c8f3b7fc7d69fe1948e400bc7ac03b032f088f9cbc8ce05988b1475a"
+      "sha256": "13b7dc89204451c8a60936780cd20225d983a75b56a6992ef6e0a1b6111851c4"
     },
     {
       "source": ".agents/skills/minimax-h3-video-production/references/minimax-h3-local.md",
       "output": "references/minimax-h3-video-production/references/minimax-h3-local.md",
-      "sha256": "6c4d040a9e96394e99750b1c6fc73183f0b26a425126b9e2fd70685e671f04a1"
+      "sha256": "daf5a0e10d28c6ebc9b1211a6c11057256ebe7780af9f80999eba98d156e0d4b"
+    },
+    {
+      "source": ".agents/skills/minimax-h3-video-production/references/official-h3-canvas-compatibility.md",
+      "output": "references/minimax-h3-video-production/references/official-h3-canvas-compatibility.md",
+      "sha256": "d4d62226391bb293fb8e4234cfebd30bde2f50f3c6a13ef86df8dfe0df31d457"
     },
     {
       "source": ".agents/skills/minimax-h3-video-production/references/whitebox-video-reference-input.md",
       "output": "references/minimax-h3-video-production/references/whitebox-video-reference-input.md",
-      "sha256": "97365b512db6ec2ab8bf0dcba9a2d9007a58cc2dee4bbf2de160baef7c96bab1"
+      "sha256": "502b69416a360738422a15ceea339f284407158df57885cffd0dccaf86640d69"
     },
     {
       "source": ".agents/skills/minimax-h3-video-production/SKILL.md",
       "output": "references/minimax-h3-video-production/SKILL.md",
-      "sha256": "e50be189cc08e2fd6590bbc7450a1b38052a993a1ab3945ea87a8f072b329bb9"
+      "sha256": "648596bfc998d46ad842a122909478447b08618942063c3132ade067154ac75b"
     },
     {
       "source": ".agents/skills/novel-to-ai-drama-adaptation/assets/templates/00-小说改编简报.md",
@@ -390,7 +410,7 @@
     {
       "source": ".agents/skills/short-video-production/SKILL.md",
       "output": "references/short-video-production/SKILL.md",
-      "sha256": "3f7d5334d6086ba9f199912e6caa32a29bf01399150731a94492643b4fcac8ce"
+      "sha256": "e2e6760e32e84a64f92dc77005ff498508d6548178f346e3f4f28c8009d074b8"
     }
   ]
 }

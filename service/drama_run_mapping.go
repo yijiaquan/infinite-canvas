@@ -50,11 +50,25 @@ func DramaVideoHasAudio(ctx context.Context, data []byte) (bool, error) {
 
 // H3 presents pictures first, then each video's optional soundtrack and frames, then voices.
 func DramaH3InputMapping(refs []model.DramaRunReference, kinds []string, videoHasAudio map[int]bool) ([]model.DramaRunInputMapping, error) {
+	return dramaH3InputMapping(refs, kinds, videoHasAudio, false)
+}
+
+// DramaH3InputMappingWithoutKeyframe leaves picture_1_keyframe empty while
+// keeping every bound image, including the director board, as a normal reference.
+func DramaH3InputMappingWithoutKeyframe(refs []model.DramaRunReference, kinds []string, videoHasAudio map[int]bool) ([]model.DramaRunInputMapping, error) {
+	return dramaH3InputMapping(refs, kinds, videoHasAudio, true)
+}
+
+func dramaH3InputMapping(refs []model.DramaRunReference, kinds []string, videoHasAudio map[int]bool, withoutKeyframe bool) ([]model.DramaRunInputMapping, error) {
 	if len(refs) != len(kinds) {
 		return nil, errors.New("参考映射不完整")
 	}
 	result := []model.DramaRunInputMapping{}
 	pictures, videos, audios, voices := 0, 0, 0, 0
+	pictureSlot := 0
+	if withoutKeyframe {
+		pictureSlot = 1
+	}
 	add := func(index int, port, tag, kind string) {
 		r := refs[index]
 		result = append(result, model.DramaRunInputMapping{ReferenceOrder: r.Order, StorageID: r.StorageID, Port: port, Tag: tag, Kind: kind, PresentationOrder: len(result) + 1, Speaker: r.Speaker})
@@ -62,12 +76,13 @@ func DramaH3InputMapping(refs []model.DramaRunReference, kinds []string, videoHa
 	for index, kind := range kinds {
 		if kind == "image" {
 			pictures++
-			port := fmt.Sprintf("picture_%d", pictures)
-			if pictures == 1 {
+			pictureSlot++
+			port := fmt.Sprintf("picture_%d", pictureSlot)
+			if pictureSlot == 1 {
 				port = "picture_1_keyframe"
-			} else if pictures == 2 {
+			} else if pictureSlot == 2 {
 				port = "picture_2_identity"
-			} else if pictures == 3 {
+			} else if pictureSlot == 3 {
 				port = "picture_3_scene"
 			}
 			add(index, port, fmt.Sprintf("<Picture %d>", pictures), "image")
@@ -94,7 +109,11 @@ func DramaH3InputMapping(refs []model.DramaRunReference, kinds []string, videoHa
 			add(index, fmt.Sprintf("audio_%d", voices), fmt.Sprintf("<Audio %d>", audios), "audio")
 		}
 	}
-	if pictures > 9 || videos > 3 || voices > 3 {
+	maxPictures := 9
+	if withoutKeyframe {
+		maxPictures = 8
+	}
+	if pictures > maxPictures || videos > 3 || voices > 3 {
 		return nil, errors.New("H3 参考超过当前工作流的9图、3视频或3独立音频上限")
 	}
 	return result, nil

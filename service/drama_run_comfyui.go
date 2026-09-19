@@ -14,6 +14,16 @@ type DramaComfyUIReference struct{ Kind, Filename string }
 
 // Bind only the current workflow's exposed task ports, preserving its processing graph.
 func PrepareDramaComfyUIWorkflow(ctx context.Context, baseURL, runID, promptText string, parameters map[string]any, references []DramaComfyUIReference) (map[string]any, error) {
+	return prepareDramaComfyUIWorkflow(ctx, baseURL, runID, promptText, parameters, references, false)
+}
+
+// PrepareDramaComfyUIWorkflowWithoutKeyframe leaves the workflow's first-frame
+// port empty and binds only the actual visual references.
+func PrepareDramaComfyUIWorkflowWithoutKeyframe(ctx context.Context, baseURL, runID, promptText string, parameters map[string]any, references []DramaComfyUIReference) (map[string]any, error) {
+	return prepareDramaComfyUIWorkflow(ctx, baseURL, runID, promptText, parameters, references, true)
+}
+
+func prepareDramaComfyUIWorkflow(ctx context.Context, baseURL, runID, promptText string, parameters map[string]any, references []DramaComfyUIReference, withoutKeyframe bool) (map[string]any, error) {
 	baseURL, err := ValidateComfyUIBaseURL(baseURL)
 	if err != nil {
 		return nil, err
@@ -34,7 +44,7 @@ func PrepareDramaComfyUIWorkflow(ctx context.Context, baseURL, runID, promptText
 			info[name] = entry
 		}
 	}
-	return compileDramaComfyUIWorkflow(workflow, info, runID, promptText, parameters, references)
+	return compileDramaComfyUIWorkflow(workflow, info, runID, promptText, parameters, references, withoutKeyframe)
 }
 
 func FinalizeDramaComfyUIIdentity(payload map[string]any, runID string) error {
@@ -57,7 +67,7 @@ func FinalizeDramaComfyUIIdentity(payload map[string]any, runID string) error {
 	return nil
 }
 
-func compileDramaComfyUIWorkflow(workflow comfyUIWorkflowDocument, info map[string]comfyUIObjectInfo, runID, promptText string, parameters map[string]any, references []DramaComfyUIReference) (map[string]any, error) {
+func compileDramaComfyUIWorkflow(workflow comfyUIWorkflowDocument, info map[string]comfyUIObjectInfo, runID, promptText string, parameters map[string]any, references []DramaComfyUIReference, withoutKeyframe bool) (map[string]any, error) {
 	var outer comfyUINode
 	var subgraph comfyUISubgraph
 	found := false
@@ -135,20 +145,25 @@ func compileDramaComfyUIWorkflow(workflow comfyUIWorkflowDocument, info map[stri
 	}
 	loaders := map[string]comfyUIAPINode{}
 	pictures, videos, audios := 0, 0, 0
+	pictureSlot := 0
+	if withoutKeyframe {
+		pictureSlot = 1
+	}
 	for _, ref := range references {
 		id := fmt.Sprintf("drama_input_%d", len(loaders))
 		switch ref.Kind {
 		case "image":
 			pictures++
-			if pictures > 9 {
+			pictureSlot++
+			if pictureSlot > 9 {
 				return nil, errors.New("当前 H3 工作流最多支持9张图片，不能丢弃超额图片")
 			}
-			name := fmt.Sprintf("picture_%d", pictures)
-			if pictures == 1 {
+			name := fmt.Sprintf("picture_%d", pictureSlot)
+			if pictureSlot == 1 {
 				name = "picture_1_keyframe"
-			} else if pictures == 2 {
+			} else if pictureSlot == 2 {
 				name = "picture_2_identity"
-			} else if pictures == 3 {
+			} else if pictureSlot == 3 {
 				name = "picture_3_scene"
 			}
 			if !exposed[name] {
@@ -185,7 +200,7 @@ func compileDramaComfyUIWorkflow(workflow comfyUIWorkflowDocument, info map[stri
 		}
 	}
 	if pictures == 0 {
-		return nil, errors.New("H3 参考生视频需要完整故事板作为第一张图片")
+		return nil, errors.New("H3 参考生视频至少需要一张实际视觉参考")
 	}
 	for key := range values {
 		if !exposed[key] {

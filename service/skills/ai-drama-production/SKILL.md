@@ -2,7 +2,7 @@
 name: AI 漫剧完整制作
 description: 在正式漫剧分集画布中，从立项、剧本、Clip 拆解、资产、导演故事板到视频生成和必剪交接的唯一总入口。
 id: ai-drama-production
-version: 12
+version: 13
 ---
 
 # AI 漫剧完整制作
@@ -22,6 +22,9 @@ version: 12
 9. 进入视频阶段必须实际读取当前 ai-media-prompt-compiler 与 minimax-h3-video-production，不能只凭本总入口、导演板文字、旧 Prompt 或记忆执行。导演板可显示 Shot 的开始–结束范围，但 H3 最终 Prompt 必须重新编译：`[Shot 1]` 无时间戳，后续 `[Shot N] At MM:SS.mmm,` 只写由前序 Shot 时长累计得到的单一切入时刻，禁止复制开始–结束范围。
 10. 所有视觉板都只按当前 Skill 声明的控制域传递语义，不能按板面观感或旧 Prompt 扩写：身份板只管身份/比例/固定 Look/服饰，道具板只管形制/材质/结构/机关/当前状态，表情板只管选定单一状态的可见反应，导演板只管 Shot 顺序/构图/调度/动作阶段/空间锚点/Look/可见表演。白底、中性姿态、展示角度、宫格与其他状态，以及页面、编号、时间文字、表格、缩略图、边框、箭头、标签和对白信息都不得泄漏到下游画面或最终视频。
 11. 每次收到新的用户消息都先执行 Skill 路由，再回复、提问或操作：结合本轮请求、当前 Canvas 阶段、所选对象和 current 状态，选择最小必要专业 Skill，并在第一次实质操作前调用 read_skill_file 读取其当前 SKILL.md；不能凭上一轮、Skill 名称、旧对话或记忆继续。任务跨阶段时按生产顺序到达对应阶段再读取，不一次加载全部 Skills。纯问候、确认、停止/取消或只报告既有工具结果由本入口直接处理，不为形式读取无关 Skill。
+12. 视频同步对白默认只在实际 Speaker 已在当前 Shot 清楚可见时开始；若画面只覆盖听者、其他角色或空景，必须先切到/跟到说话者、重构焦点或让其入画，再写该 Speaker 的精确台词，不能让画内人物代说画外角色台词。明确的画外对白使用官方句式 `[Speaker] (Sx) says in an off-screen voiceover: <d>[Language]...</d> while the corresponding on-screen character's lips remain completely closed.`，并写清声源方位/距离/设备与听者反应。
+13. Ref2VA 的完整导演故事板必须作为普通 `<Picture 1>` 输入，当前完整场景板作为后续普通 Picture 输入；导演板控制 Shot 规划，场景板控制拓扑、固定锚点、材质、主光和多方向关系。两者都不得进入 `picture_1_keyframe`，板式、网格、文字和参考页本身不得渲染进成片。`picture_1_keyframe` 继续断开，除非主人明确选择 I2VA 或 FL2VA 端点模式。
+14. H3 Prompt 语法和模型能力以 references/h3-prompt-writing/SKILL.md 及其官方模式指南为准；Infinite Canvas 当前 UI JSON/服务端 schema 决定可执行输入。官方支持但当前 Canvas 未暴露的模式或槽位不得猜测接线，本地生产 Skill 只能补结构化绑定、制作语义、提交与媒体 QA。
 
 ## 逐轮路由矩阵
 
@@ -35,7 +38,7 @@ version: 12
 - 身份板、表情板、场景板、道具板、色板、导演故事板及视觉修复：主责 references/ai-drama-visual-assets/SKILL.md，配套读取 references/ai-media-prompt-compiler/SKILL.md 的对应方法。
 - 从 current 同场资产派生新视角：附加 references/scene-multiview-consistency/SKILL.md；采用与 QA 仍归 Visual Skill。
 - 主人明确选择白模或直接要求 Blender：附加 references/blender-whitebox-previs/SKILL.md；它不是默认阶段。
-- MiniMax H3 模式、绑定、正式 Prompt、提交、返修和视频 QA：主责 references/minimax-h3-video-production/SKILL.md，并配套读取 references/ai-media-prompt-compiler/SKILL.md；仅在存在实际 Speaker、Voice、原生对白或唇同步输入时附加 references/ai-drama-audio-post-production/SKILL.md。
+- MiniMax H3 模式、绑定、正式 Prompt、提交、返修和视频 QA：先读官方 references/h3-prompt-writing/SKILL.md 及所选模式指南，再读主责 references/minimax-h3-video-production/SKILL.md，并配套读取 references/ai-media-prompt-compiler/SKILL.md；仅在存在实际 Speaker、Voice、原生对白或唇同步输入时附加 references/ai-drama-audio-post-production/SKILL.md。
 - 视频后的对白修复、环境音、拟音、SFX、音乐、字幕、混音或 Bcut 音轨：references/ai-drama-audio-post-production/SKILL.md。
 - 必剪、整片审查、导出或交付：references/short-video-production/SKILL.md；它不与总编排争夺其他漫剧阶段。
 

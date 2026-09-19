@@ -5,6 +5,10 @@ description: Produce, repair, review, and hand off AI-video Clips using the curr
 
 # AI Video Production
 
+## Official Prompt Authority
+
+进入任何 H3 Prompt 编译前，先读取同级 `$h3-prompt-writing` 的当前 `SKILL.md` 和所选模式对应的官方 `references/base-en.txt` 或 `references/ref-en.txt`。官方 Skill 是 H3 格式、五种任务语义、Speaker、`<d>`、`<scenetrans>`、`<cutoff>`、参考保留关系与英文正文要求的权威；本 Skill 只补 Infinite Canvas 当前工作流映射、结构化绑定、漫剧制作语义、提交与媒体 QA。冲突时按“当前 Canvas UI JSON/服务端 schema 的可执行输入 > 主人本轮明确要求 > 当前官方 H3 Skill > 本地制作偏好”处理；Canvas 不支持的模式或槽位不得伪造，官方支持而 Canvas 尚未暴露的能力明确记为基础设施缺口。
+
 ## Canvas Production Boundary
 
 进入漫剧生产前读取 [Canvas 生产契约](../ai-drama-studio-workflow/references/infinite-canvas-production-contract.md)，先调用 `get_canvas_summary` 并核对真实项目/分集/Clip ID 与 revision。创作源文件可以保留；生产交接写入并读回 Canvas 对象，不维护第二份资产或状态台账。
@@ -16,20 +20,24 @@ description: Produce, repair, review, and hand off AI-video Clips using the curr
 
 本 Skill 只接收已经成立的制作剧本、current 视觉资产和通过逐格 QA 的 current 完整导演板。缺少正式导演板，或导演板仍存在 Beat 遗漏、身份/空间/道具漂移、动作跳变、镜头覆盖失败时，退回 Series/Visual 修正；不得用 H3 Prompt 或生成重试替代上游工作。视频通过真实媒体 QA 后才交给必剪。
 
+## Ref2VA No-First-Frame Policy
+
+当前 Ref2VA 不把完整导演板、场景板、身份板、道具板或其他普通参考接入 `picture_1_keyframe`。导演板仍是审核、Panel/Shot 规划、连续性校验和提示词编译的权威，但只以规划语义参与；实际人物、单状态表情、场景、道具、视频和 Voice 依据结构化绑定进入可选参考槽。`picture_1_keyframe` 必须保持断开，只有主人明确选择 I2VA 首帧模式或 FL2VA 首尾帧模式时才连接经过独立 QA 的端点图像。本规则优先于本文件其余历史的“导演板作为 `<Picture 1>`”表述。
+
 ## Default Route
 
 - 默认模型：MiniMax H3 local。
-- 默认输出：480p。时长与镜头数量由剧情、自然对白和动作决定；当前本地已验证制作范围为单次 2–15 秒，不等于底层节点硬上限，也不把所有 Clip 填到 15 秒。更长场次先规划完整内容，再按有动机的切点拆为可执行 Clips。
+- 默认输出：当前 Canvas 工作流配置的 480p。官方 H3 输出时长为整数 4–15 秒；镜头数量由剧情、自然对白和动作决定，不把所有 Clip 填到 15 秒。输入参考视频允许的时长范围与输出时长是两个合同，不得混用。更长场次先规划完整内容，再按有动机的切点拆为可执行 Clips。
 - 每个 H3 Clip 只用一个 generation mode。漫剧默认使用 `MiniMax-H3_03` Ref2VA；一个 Clip 根据完整故事板规划实际 N 个同场 editorial Shots，N 不固定。`MiniMax-H3_02` FL2VA 只在主人明确测试或开场/落点两端都必须精确成立时选用。
-- 项目选择白模预演时，Ref2VA 输入包含完整分镜故事板 `<Picture 1>`，以及该 Clip 通过 QA 的 Blender motion-reference MP4 `<Video 1>`。
+- 项目选择白模预演时，完整分镜故事板继续提供规划语义但不进入 Ref2VA 图片槽；该 Clip 通过 QA 的 Blender motion-reference MP4 作为 `<Video 1>`。
 - H3 无法完成的需求如需更换模型，等待主人明确选择并验证对应 ComfyUI 工作流。
 - 正常项目遵循 [Infinite Canvas 生产契约](../ai-drama-studio-workflow/references/infinite-canvas-production-contract.md)：先 `get_canvas_summary`，读取匹配 Clip/Shot、节点 Prompt、有序版本绑定及运行记录。通过真实 MCP/工作台预览与提交，底层由管理员配置的 H3 工作流生成；不经旧工作台或文件索引。只有明确技术实验或真实执行失败才加载技术排障资料。
 
-读取 `references/minimax-h3-local.md` 获取 H3 模式、参考角色、提示格式和 QA 方法，并读取 [H3 提示词编译与校验](references/h3-prompt-compilation-and-validation.md) 进行完整重编译和提交前结构检查。项目选择 Blender 白模预演时，同时读取 [H3 白模视频参考输入](references/whitebox-video-reference-input.md)。打斗、武器、法术、异能、怪物能力或范围技能攻击时，按 Prompt Skill 的 [高密度打斗、技能与能力调度](../ai-media-prompt-compiler/references/combat-and-ability-staging.md) 先组织整段 连续攻防，再把每轮可读战术变化映射为一个 Panel / 内部 Shot。每次提交前重新读取所选模式的当前 UI JSON；它是唯一执行图真源。`01` 仅用于无需视觉参考的简单例外；`02` 用于明确选择的 FL2VA 端点测试；`03` 是默认 Ref2VA 路线。参考页只说明公开输入的职责，不定义或重建内部节点链。
+读取 `references/official-h3-canvas-compatibility.md`、`references/minimax-h3-local.md` 和 [H3 提示词编译与校验](references/h3-prompt-compilation-and-validation.md)。项目选择 Blender 白模预演时，同时读取 [H3 白模视频参考输入](references/whitebox-video-reference-input.md)。打斗、武器、法术、异能、怪物能力或范围技能攻击时，按 Prompt Skill 的 [高密度打斗、技能与能力调度](../ai-media-prompt-compiler/references/combat-and-ability-staging.md) 先组织整段连续攻防，再把每轮可读战术变化映射为一个 Panel / 内部 Shot。每次提交前重新读取所选模式的当前 UI JSON；它是唯一执行图真源。当前正式映射为 `01` T2VA、`02` FL2VA、`03` Ref2VA。官方 I2VA/L2VA 只有在当前 UI JSON 确实暴露单端点输入时才可映射，不能仅因官方 Skill 支持就猜测节点接线。
 
 ## Inputs
 
-完整导演板必须在本次执行预览中成为首个 Picture，随后依次连接实际出镜人物的完整身份板、关键近景所需单状态表情参考、当前 Location 场景板及实际出现且影响连续性的关键道具版本；Voice 只关联实际 Speaker。引用使用数据库 assetId/versionId/storageId 与 role/order/speaker，不使用文本提及解析。完整 `expression` 人物表情板只能绑定上游导演板节点，禁止直接进入 H3；视频的 `role: "expression"` 只接受父级为表情板的单状态图片 `reference`。关系锚点或白模预演仅在真实保真风险存在时加入。Codex 编写语义正文与结构化引用，官方媒体标签仅由预览/提交编译器生成；草稿或绑定变化后重核当前 Prompt，不改已提交快照。适配层已加入导演板时不要重复绑定它。
+完整导演板必须作为普通 `<Picture 1>` 连接 H3，但不得接入 `picture_1_keyframe`。当前完整场景板作为后续普通场景 Picture，同样不接入 `picture_1_keyframe`。实际图片按“完整导演板 → 出镜人物完整身份板 → 关键近景单状态表情参考 → 当前完整场景板 → 连续性关键道具版本”连接并连续编号；导演板控制 Shot 规划，场景板控制拓扑、固定锚点、材质、主光和多方向关系；Voice 只关联实际 Speaker。引用使用数据库 assetId/versionId/storageId 与 role/order/speaker，不使用文本提及解析。完整 `expression` 人物表情板只能绑定上游导演板节点，禁止直接进入 H3；视频的 `role: "expression"` 只接受父级为表情板的单状态图片 `reference`。关系锚点或白模预演仅在真实保真风险存在时加入。Codex 编写语义正文与结构化引用，官方媒体标签仅由预览/提交编译器生成；草稿或绑定变化后重核当前 Prompt，不改已提交快照。
 
 一个 H3 Clip 需要：
 
@@ -39,8 +47,8 @@ description: Produce, repair, review, and hand off AI-video Clips using the curr
 - 当前项目选择 Blender 白模预演时，已写入共享语义 brief 的摄影/调度合同，以及通过 QA 的同 Shot `*_reference.mp4`；该视频必须作为 H3 `<Video 1>`/`video_1_frames` 输入，仅控制相机、调度、动作节拍和空间拓扑；
 - 对双人、门口、交接、揭示、追逐、打斗、武器或技能攻击、或群像：Shot 功能、唯一主状态变化、行动主导者、受控反应和下一 Shot 交接；三人以上、围堵或队列还要给出焦点人物/具名配角相对命名锚点的区域与朝向、每个 `Crowd-*` 簇的人数/区域/整体朝向/密度、入口通道、功能关系/空间权限和唯一允许重排；冲突/技能 Shot 还要给出双方距离/朝向/重心、关键物或能力源头、作用路径/目标范围、可见后果与终态；
 - 同场多 Shot 或路径动作的覆盖与交接：观众必须读到的事实、相对上一镜的可读变化、切点理由，以及人物相对锚点的位置/朝向/行动阶段和道具归属如何进入下一镜；跨镜连接道具再提供归属者、端点 A/端点 B、路径/余量或滑动方式与当前模式；
-- 当前出镜人物按实际重要性连接各自的完整身份板；不为正常 H3 Clip 派生或生成常规单视角人物图。身份板只控制脸、发型、身体比例、服装和固定配饰，不控制板内中性姿态、表情、白底或排版。当前 Location 连接完整场景板，控制同一地点的拓扑、固定锚点、入口、主光和多方向关系。关键道具连接完整道具板，控制形制、材质、数量、机制和当前 State；连接道具还必须固定归属者、两端、路径与模式。故事板继续负责当前空间中的实际站位、镜头、动作和状态交接；
-- Scene Bible 中的独立 Top-Down、Anchor 表、Blocking Zone、Camera Coverage 或整套 View Library 不作为 H3 图片槽批量输入。它们先被编译进完整分镜导演板、Camera Zone、屏幕方向和可见 Anchor；当前完整场景板仍作为常规场景 Picture 输入，单独 `Location + View` 不再作为常规补图。
+- 当前出镜人物按实际重要性连接各自的完整身份板；不为正常 H3 Clip 派生或生成常规单视角人物图。身份板只控制脸、发型、身体比例、服装和固定配饰，不控制板内中性姿态、表情、白底或排版。当前 Location 连接完整场景板，控制同一地点的拓扑、固定锚点、入口、主光、材质和多方向关系，但不控制首镜头构图。关键道具连接完整道具板，控制形制、材质、数量、机制和当前 State；连接道具还必须固定归属者、两端、路径与模式。故事板继续负责当前空间中的实际站位、镜头、动作和状态交接；
+- Scene Bible 中的独立 Top-Down、Anchor 表、Blocking Zone、Camera Coverage 或整套 View Library 不作为 H3 图片槽批量输入。它们先被编译进完整分镜导演板、Camera Zone、屏幕方向和可见 Anchor；当前完整场景板仍作为常规场景 Picture 输入，单独 `Location + View` 不作为常规补图。
 - 当前 Shot 确有近景微表情或复杂情绪弧风险时，先确认制作拆解已有角色表演语言和当前 Clip 表演曲线，完整导演板对应 Panel 已写清触发、眼神/聚焦、眼睑、眉间、嘴唇、下颌、呼吸、面部张力、身体协同与结束变化，并继续使用完整身份板保持身份。完整 `expression` 表情板只服务上游制板；制作拆解已标记的关键近景、特写或大特写可在首次生成前追加一张限定当前 Clip/Shot 的干净单状态子参考，真实视频 QA 返修也可使用；
 - 当前 Project / Scene Look、Color State、可见 Light ID 与 Lighting State。完整电影 Look Board 只服务上游完整分镜导演板，不直接进入 H3；整板未能可靠承载综合色彩时先修整板，不用额外板式图片补救。Look 只控制肤色、综合色彩关系、阴影/高光、黑位、材质响应和强调色职责，不控制身份、地理、道具、动作或构图；
 - 仅本 H3 Clip 实际各 Shot 中实际发声者的 Voice 样本和声音方案（有对白时）。Picture、Audio、Subject、Speaker 分别编号：可见说话者的 Audio 指向其 Subject 与 Speaker；没有可见实体的画外音、旁白、广播或系统声只绑定 Audio 与 Speaker，不得为了音频额外创建 Subject；
@@ -49,11 +57,11 @@ description: Produce, repair, review, and hand off AI-video Clips using the curr
 
 声音方案逐 Shot 写 `AMB=延续/进入/退出 + 可听空间锚点`、与可见事件同步的 Foley/SFX、声源和精确 Line（如有），以及交给下一 Shot 的声音状态。相邻同场 Shot 默认继承底声和相对空间距离；只有门、距离、机器、天气或场景确实变化时改变。`无台词` 不传 Voice，但仍保留必要 AMB/Foley/SFX。非画内 BGM 只作为 `none / 延续 / 进入 / 退出 / 为对白让路` 的时间线意图交给必剪，不让每个 H3 Shot 烧入并重开配乐；画内音乐才属于该 Shot 声源。
 
-每个参考只控制一个明确层。一个 H3 Clip 是一条同场、连续时间、按实际节奏定时的请求。Ref2VA 以完整分镜导演故事板作为主 `<Picture 1>`；随后按“实际出镜主角身份板 → 其他实际出镜角色身份板 → 关键近景单状态表情参考 → 当前完整场景板 → 实际关键道具板 → 其他必要参考”的顺序连接 `<Picture 2>` 至 `<Picture 9>`。故事板控制镜头计划，身份板控制人物身份与 Look，单状态表情参考只控制指定 Shot 的微表情与身体反应语言，场景板控制空间拓扑与固定锚点，道具板控制形制、机制和 State。超出九张时优先保留故事板、实际出镜身份板和当前场景板；表情参考只有承载关键剧情信息时才优先于次要道具或一般参考。不传完整宫格表情板、各 Panel 裁图、常规单视角派生图、重复图片、上一条成片原始尾帧或无职责的视频。
+每个参考只控制一个明确层。一个 H3 Clip 是一条同场、连续时间、按实际节奏定时的请求。Ref2VA 的完整分镜导演故事板作为 `<Picture 1>`，实际图片按“完整导演板 → 实际出镜主角身份板 → 其他实际出镜角色身份板 → 关键近景单状态表情参考 → 当前完整场景板 → 实际关键道具板 → 其他必要参考”的顺序连续编号。导演板控制 Shot 规划，身份板控制人物身份与 Look，单状态表情参考只控制指定 Shot 的微表情与身体反应语言，场景板控制空间拓扑、固定锚点、材质和主光，道具板控制形制、机制和 State。最多八张普通参考图；不传完整宫格表情板、各 Panel 裁图、常规单视角派生图、重复图片、上一条成片原始尾帧或无职责的视频。
 
 完整分镜故事板同时承担当前 Clip 的主要 Look 基线。完整 Look Board 不作为额外 H3 Picture；若整板未可靠覆盖综合色彩，先用 current Look Board 修正或重做整板。换机位、景别或人物位置不会重置 Project / Scene Look，只有已声明 Color State 或有动机 Lighting State 可以改变色光关系。
 
-其中 `<Picture 1>` 的每格建立对应 Shot 的一个可读瞬间；动作格优先使用可继续的 `mid_state`，并保持 Camera Zone、景别/焦段/机高/角度、前景/主体/后景和身体表演合同。身份板只锁定“是谁”，不得把其中的中性表情、站姿或视线带入完整分镜。
+导演板的每格建立对应 Shot 的一个可读瞬间；动作格优先使用可继续的 `mid_state`，并保持 Camera Zone、景别/焦段/机高/角度、前景/主体/后景和身体表演合同。身份板只锁定“是谁”，不得把其中的中性表情、站姿或视线带入成片。
 
 参考槽数量不是固定模板。每个 H3 Clip 都从所选模式、实际出镜/出声内容和 Shot 覆盖重新计算输入，只连接必要且内容互不重复的媒体；空槽直接断开或省略。H3-03 的公开槽位按当前 UI 图为准；H3-02 的开场帧、落点帧和提示字段同样只按 freshly-read UI 图绑定。图片、视频帧和音频的上游来源只按所选 UI 图的公开输入配置，不手工搭建历史 `ref_*` 接线。当前 UI 节点里的示例 Prompt 只是占位内容，每次请求必须用当前 Clip 完整重编译的 Prompt 覆盖。最终标签、实际媒体、顺序、职责及适用 Shot 必须逐项一致。
 
@@ -86,11 +94,15 @@ description: Produce, repair, review, and hand off AI-video Clips using the curr
 
 对白必须已有说话前任务、说话时行为、听者/环境反应、台词后的变化，以及画内/画外/旁白声源、语言和可容纳的时间窗口；每个 Shot 只能有一个由行动、注意力、揭示或空间关系驱动的主要摄影行为。若精确台词装不进窗口，退回 Prompt Skill 先按真实编辑点拆 Shot，不在 Video Skill 压缩台词或二次创作。
 
+原生同步对白默认只在实际 Speaker 已清楚出现在当前 Shot 时开始。最终 Prompt 在 `<d>` 前先用英文建立该 Speaker 的画内位置、当前可见动作和 Subject/Speaker 映射；若此时画面只覆盖听者或另一角色，先增加有动机的反打、切镜、跟摇、构图重心转移或人物入画，再写该 Speaker 的 `<d>`。不能让一个画内人物的脸和口型承载另一个画外人物的 Voice/台词。多人轮流说话时，除非同一双人镜能稳定辨认当前发言者，否则换 Speaker 即换 owner Shot 或明确重构焦点。
+
+画外对白必须是明确选择的旁白、电话/广播、门外声源、延迟揭示或 J-cut/L-cut。其最终发声句使用官方句式 `[Speaker] (Sx) says in an off-screen voiceover: <d>[Language]...</d> while the corresponding on-screen character's lips remain completely closed.`，同时写清声源方位、距离或设备；`<Audio N>`、`(Sx)` 与 `<d>` 仍只属于真实画外 Speaker。没有叙事必要性的画外对白退回 Prompt Skill 改为切到说话者。
+
 对白情绪按官方结构写在 `<d>` 外，但最终文本必须简洁：用一句大白话交代当前情绪、必要的语速或音量变化和一个最关键的可见动作，然后直接进入 `<d>[Chinese]…</d>`。Audio 参考只自然带出一次，例如“借用 `<Audio N>` 的音色，平静地说出”，不得写“严格参照声音身份与演绎节奏”“以自然中文口型、呼吸、停顿、目光和身体动作完成表演”等通用套话。`<d>` 内只保留角色真正朗读的精确原文及正常标点，不放舞台说明。
 
 ## Scope and Timing
 
-先把剧本中同场、同时间、同目标的动作、对白、听者反应和摄影跟随压缩成连续表演，再决定 editorial Shots。默认不切镜；只有新必要事实、当前机位无法读清的关键动作、观察立场变化或不可替代的节奏重音才建立新 Shot。逐镜删除测试后，移除仍不损失上述内容的镜头必须合并或删除。实际镜头数 N 与总时长 T 没有固定绑定。每个保留 Shot 都有 Dramatic Beat、摄影行为、声音落点和交接状态；第二镜至末镜使用严格递增、位于 T 内的切点。H3 当前已验证单次范围为 2–15 秒，更长内容按真实切点拆成多个有各自导演板的 Clip；不要为凑满时长添加镜头，也不要把完整场次硬塞进请求。路径动作和连接道具仍写清上一末态、当前开场、可见过程、当前终态及下一开场，不能让切镜掩盖瞬移或道具消失。明确：
+先把剧本中同场、同时间、同目标的动作、对白、听者反应和摄影跟随压缩成连续表演，再决定 editorial Shots。默认不切镜；只有新必要事实、当前机位无法读清的关键动作、观察立场变化或不可替代的节奏重音才建立新 Shot。逐镜删除测试后，移除仍不损失上述内容的镜头必须合并或删除。实际镜头数 N 与总时长 T 没有固定绑定。每个保留 Shot 都有 Dramatic Beat、摄影行为、声音落点和交接状态；第二镜至末镜使用严格递增、位于 T 内的切点。H3 官方单次输出范围为整数 4–15 秒，更长内容按真实切点拆成多个有各自导演板的 Clip；不要为凑满时长添加镜头，也不要把完整场次硬塞进请求。路径动作和连接道具仍写清上一末态、当前开场、可见过程、当前终态及下一开场，不能让切镜掩盖瞬移或道具消失。明确：
 
 每个 Shot 同时声明一个 Camera Zone；同一 Location + View 允许在合法工作侧内改变距离、高度、焦段、景别、过肩、前景遮挡和小幅角度，不把场景一致误解成固定摄像头。
 
@@ -103,7 +115,7 @@ description: Produce, repair, review, and hand off AI-video Clips using the curr
 
 ## H3 Prompt Formats
 
-先读取 [H3 Ref2VA 本地生产提示词模板](references/h3-ref2va-final-prompt-template.md)；选择 FL2VA 时改读 [H3 FL2VA 端点测试模板](references/h3-fl2va-test-template.md)。Ref2VA 使用固定六段顺序，Base/FL2VA 使用官方三段与对齐行。段名、媒体/Subject/Speaker 标签、`[Shot N] At MM:SS.mmm,` 和 `<d>[Chinese]…</d>` 保留固定兼容语法；六段中的说明、逐镜描述与声音正文统一使用自然中文。上游导演板使用信息栏、大幅镜头画面与底部参考简表，完整导演字段保留在工作台镜头表，但其字段不复制进 `detailed_description`。`detailed_description:` 可直接进入 `[Shot 1]`，也可先写一至两句纯风格开场；开场只写媒介、真实度、综合色彩、材质与整体影像气质，第一帧、参考、切镜、运镜、动作、表演和声音都进入前三段或对应 Shot，也不在每镜重复素材清单。多 Shot Ref2VA 只在 `detailed_description` 中增加后续 `[Shot N] At MM:SS.mmm, ...`，不改变六段骨架。每次修改动作、时长、媒体、Shot 顺序、Speaker 或声音后，依据编译参考页从当前有效事实完整重写 Prompt，不在旧 Prompt 后追加补丁。
+先读官方模式指南，再读取 [H3 Ref2VA 本地生产提示词模板](references/h3-ref2va-final-prompt-template.md)；选择 Base 模式时按官方 `base-en.txt`。Ref2VA 使用固定六段顺序，Base 模式使用官方三段及适用的对齐行。段名、媒体/Subject/Speaker 标签、`[Shot N] At MM:SS.mmm,` 和 `<d>[Chinese]…</d>` 保留固定兼容语法；所有新增描述正文使用英文，只有对白、歌词和画面实际可见文字保留原语言。上游导演板字段不复制进 `detailed_description`。生成任务的 `detailed_description` 通常以 350–500 个英文词提供足够时序细节，但短 Clip 以准确完整的时间线为先，不为凑词数堆砌。每次修改动作、时长、媒体、Shot 顺序、Speaker 或声音后，从当前有效事实完整重写 Prompt，不在旧 Prompt 后追加补丁。
 
 H3 提示词优先使用具体、直接、可视化的描述，少写需要模型“意会”的抽象句或文学比喻。把“压迫感增强”“命运逼近”“空气凝固”“他意识到危险”等意图，展开成可见、可听的人物重心与动作、眼神和面部张力、距离与遮挡、构图占比、摄影机路径与落点、光线变化、材质/环境响应或声音事件。风格和情绪词可以保留，但不能替代其对应的画面与声音载体；也不要退化成逗号分隔的关键词堆。
 
@@ -111,7 +123,7 @@ H3 提示词优先使用具体、直接、可视化的描述，少写需要模�
 
 ### Base Modes
 
-只把 Prompt Skill 的语义 brief 转换为官方 H3 Base 格式：`integrated_multimodal_description`、`overall_soundscape`、`non_diegetic_music`。字段名与首帧/FL2VA 的官方对齐行保留固定兼容语法，正文统一使用自然中文；精确对白和可见文字保持原语言。FL2VA Prompt 必须描述从开场帧到落点帧的可生成过程、相机路径、状态变化和实际时长，不能让模型仅凭两个静态结果猜过程。不得在此重写剧情或参考职责。
+只把 Prompt Skill 的语义 brief 转换为官方 H3 Base 格式：`integrated_multimodal_description`、`overall_soundscape`、`non_diegetic_music`。字段名与 I2VA/FL2VA/L2VA 的官方对齐行保留固定兼容语法，描述正文使用英文；精确对白、歌词和可见文字保持原语言。FL2VA Prompt 必须描述从开场帧到落点帧的可生成过程、相机路径、状态变化和实际时长，不能让模型仅凭两个静态结果猜过程。不得在此重写剧情或参考职责。
 
 除明确要求画内音乐或单段容器交付，单个 H3 Shot 的 `non_diegetic_music` 默认写 `none`。跨 Shot BGM 由必剪的独立音乐轨负责；Prompt 中若有音乐，只允许写与上一/下一 Shot 的相对 `延续 / 进入 / 退出 / 为对白让路`，不让每段视频各自重新起一首配乐，也不因 `none` 丢掉 AMB、Foley 或 SFX。
 
@@ -126,13 +138,13 @@ H3 提示词优先使用具体、直接、可视化的描述，少写需要模�
 5. `overall_soundscape`；
 6. `non_diegetic_music`。
 
-保持 Picture、Video、Audio、Subject 标签和 Speaker 映射一致。每个实际连接的 `<Audio N>` 必须在 `subject_definitions` 定义，在 `summary` 概括其任务职责，在 `retention_analysis` 写明 `reference`/复用关系，并在该音频真正生效的 Shot 自然引用一次；写成“借用 `<Audio N>` 的音色，[简短情绪]地说出”即可，不复述声音身份、演绎节奏或表演检查清单。`retention_analysis` 不写 `(Sx)`，Speaker 只在定义绑定与目标视频的实际发声事件中使用。目标新台词由正确的 `<Subject N> (Sx)` 说出，并放在 `<d>[Language] ...</d>` 中。一次连续发言指定唯一 `dialogue_owner_shot`，完整可朗读原文只在该 Speaker 的一个 `<d>` 中出现一次；其余 Shot 只描述同一次发言的准备、中段、收束或声音落下后的可见反应，不能出现原句、短句、关键词或引号。`summary`、`retention_analysis` 与 `overall_soundscape` 不复述可朗读文本。
+保持 Picture、Video、Audio、Subject 标签和 Speaker 映射一致。每个实际连接的 `<Audio N>` 必须在 `subject_definitions` 定义，在 `summary` 概括其任务职责，在 `retention_analysis` 写明官方保留关系，并在该音频真正生效的 Shot 自然引用一次。`retention_analysis` 不写 `(Sx)`，Speaker 只在定义绑定与目标视频的实际发声事件中使用。目标新台词由正确的 `<Subject N> (Sx)` 说出，并放在 `<d>[Language] ...</d>` 中；多人同时说或唱按官方使用复合 Speaker ID `(S1,S2)`。通常一次连续发言由一个 `dialogue_owner_shot` 的一个 `<d>` 完整承载；若同一句有意跨越剪辑，则按官方在切点拆成相邻两个 `<d>`，两段连接处都标记 `<scenetrans>`，并在英文正文明确声音无缝连续，保证原文不重不漏。只有视频结尾刻意截断发言时使用 `<cutoff>`。`summary`、`retention_analysis` 与 `overall_soundscape` 不复述可朗读文本。
 
 最终 Prompt 严格隔离“制作层”和“故事世界层”：导演板与各类资产板只在前三段声明来源和控制职责；`detailed_description` 的 Shot 正文不得出现板名、标题栏、编号、格线、参考小图、平面图、表格或 `<Picture N>`，只使用已定义 `<Subject N>` 写最终可见世界。无对白 Shot 只写动作、听者反应、环境声和 Foley，不出现 Voice、Audio、Speaker、`<d>`，也不使用“闭口／不要说话／无台词”等反向控制语。提交前必须通过提示词 lint，任一制作层泄露或声音职责泄露均不提交。
 
 中文字符“说”只用于真正对白发生处，并且只能作为紧邻唯一 `<d>` 前的明确发声句式，例如“`<Subject N> (S1) 说出 <d>…</d>`”。其余位置禁止使用“说完后、说话时、继续说、没有说、听他说、说了一句”等文字；对白后的状态改写为“声音落下后”的可见动作，听者段只写反应，声音段只写具体声源与声场。角色真实台词内部出现“说”不受此规则影响。
 
-最终 H3 Prompt 不附带独立 negative-prompt 字段、后缀或第七段。参考保留、限制与变化按官方段落职责用自然中文写入相应六段；不得再套用项目自定义的负词黑名单。`non_diegetic_music: N/A` 或 `none` 是音乐状态字段。
+最终 H3 Prompt 不附带独立 negative-prompt 字段、后缀或第七段。参考保留、限制与变化按官方段落职责用英文写入相应六段；不得再套用项目自定义的负词黑名单。`non_diegetic_music: N/A` 或 `none` 是音乐状态字段。
 
 ## Native Dialogue
 

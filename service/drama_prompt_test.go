@@ -27,3 +27,15 @@ func TestCompileDramaPromptCompilesNativeCanvasLabels(t *testing.T) {
 		t.Fatalf("unexpected prompt:\n%s", got)
 	}
 }
+
+func TestCompileDramaPromptWithoutStoryboardRemapsLegacyLabels(t *testing.T) {
+	mapping := []model.DramaRunInputMapping{
+		{StorageID: "identity", Tag: "<Picture 1>", Kind: "image"},
+		{StorageID: "scene", Tag: "<Picture 2>", Kind: "image"},
+	}
+	prompt := "图片1 controls coverage. 图片2 defines identity. 图片3 defines the scene."
+	want := "the approved director storyboard controls coverage. <Picture 1> defines identity. <Picture 2> defines the scene."
+	if got := CompileDramaPromptWithoutStoryboard(prompt, mapping); got != want {
+		t.Fatalf("unexpected prompt:\n%s", got)
+	}
+}

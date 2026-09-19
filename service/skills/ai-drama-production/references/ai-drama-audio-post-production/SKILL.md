@@ -71,7 +71,7 @@ description: Prepare recurring Voice references and provider-native dialogue req
 
 ### Off-Screen / Voiceover
 
-画外音或旁白不要求口型，但仍要保持 Voice、语气、文本、时长和场景声音一致。
+同步对白默认让实际 Speaker 在 owner Shot 中可见；若原镜头只拍听者或另一角色，先由 Prompt/Video Skill 切到、跟到或让说话者入画，再开始台词。画外音或旁白不要求说话者口型，但只用于明确的旁白、电话/广播、门外声源、延迟揭示或 J-cut/L-cut，并保持 Voice、语气、文本、时长和场景声音一致。交给 H3 时使用官方短语 `says in an off-screen voiceover`，紧接下一句“画面内角色嘴唇保持闭合”，同时写明声源方位/距离/设备；不得把画内听者绑定到画外 Speaker 的 Voice 或 Line。
 
 ## Source Audio Policy
 

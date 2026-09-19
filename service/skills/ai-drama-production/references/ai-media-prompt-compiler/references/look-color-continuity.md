@@ -118,7 +118,7 @@ Look continuity:
 - allowed change: <本 Shot 唯一允许的有动机色光变化>
 ```
 
-没有独立 Scene Look 或特殊状态时省略对应行。`project_look_board` 路线的静态资产/分镜导演板提示词必须真实连接并引用对应配色色卡；`text_only` 路线只继承文字 Project Look。H3 从 `<Picture 1>` 的完整分镜导演板继承 Look。
+没有独立 Scene Look 或特殊状态时省略对应行。`project_look_board` 路线的静态资产/分镜导演板提示词必须真实连接并引用对应配色色卡；`text_only` 路线只继承文字 Project Look。H3 从完整导演板编译出的规划语义和实际身份/场景/道具参考继承 Look，不上传导演板本身。
 
 ## QA 与返修
 

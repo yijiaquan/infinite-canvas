@@ -29,3 +29,26 @@ func TestDramaH3MappingAccountsForVideoAudio(t *testing.T) {
 		t.Fatal("unknown soundtrack guessed")
 	}
 }
+
+func TestDramaH3MappingWithoutKeyframeStartsAtPictureTwo(t *testing.T) {
+	refs := []model.DramaRunReference{{Order: 0, StorageID: "board", Role: "storyboard"}, {Order: 1, StorageID: "identity"}, {Order: 2, StorageID: "scene"}}
+	mapping, err := DramaH3InputMappingWithoutKeyframe(refs, []string{"image", "image", "image"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := mapping[0].Port, "picture_2_identity"; got != want {
+		t.Fatalf("first visual port = %q, want %q", got, want)
+	}
+	if got, want := mapping[1].Port, "picture_3_scene"; got != want {
+		t.Fatalf("second visual port = %q, want %q", got, want)
+	}
+	if got, want := mapping[0].Tag, "<Picture 1>"; got != want {
+		t.Fatalf("first visual tag = %q, want %q", got, want)
+	}
+	if got, want := mapping[0].StorageID, "board"; got != want {
+		t.Fatalf("first visual storage = %q, want %q", got, want)
+	}
+	if got, want := mapping[2].Port, "picture_4"; got != want {
+		t.Fatalf("scene port = %q, want %q", got, want)
+	}
+}

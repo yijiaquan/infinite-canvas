@@ -29,7 +29,7 @@ FL2VA is available for explicit tests and conditional endpoint tasks. Select it 
 
 Use [H3 Ref2VA 统一最终提示词模板](h3-ref2va-final-prompt-template.md) rather than maintaining a second binding block here. In short: `<Picture 1>` is the complete variable-panel director-board anchor; later Pictures are the required complete identity boards, key-close-up clean single-state expression references, current complete scene board and actual critical prop boards, each defining a stable `<Subject N>`; the action prose tracks Subject labels. Omit unused later pictures and disconnect unused image slots instead of repeating a reference or attaching unrelated material.
 
-The current Ref2VA UI exposes a wrapped direct task-input surface rather than historical `ref_*` conditioning ports. Bind the complete director board to `picture_1_keyframe`; bind later picture inputs contiguously in this semantic order: actually visible identity boards, key-close-up clean single-state expression references, current complete scene board, critical prop boards, then other necessary references. Do not infer semantic roles from fixed slot names such as `picture_2_identity` or `picture_3_scene`; the current structured binding and compiled order are authoritative. Use at most `picture_1`–`picture_9`. When capacity is insufficient, preserve the director board, visible identity boards and current scene board; retain an expression reference ahead of secondary props or general references only when it carries key story information. Change only visible media sources and direct fields on the freshly read UI workflow. Fully replace the saved sample prompt with the current Clip's recompiled six-section prompt before submission.
+The current Ref2VA UI exposes a wrapped direct task-input surface rather than historical `ref_*` conditioning ports. Keep `picture_1_keyframe` disconnected. The complete director board remains the planning authority but is not uploaded and receives no Picture label. Bind actual image references from the optional slots in this semantic order: actually visible identity boards, key-close-up clean single-state expression references, current complete scene board, critical prop boards, then other necessary references. Do not infer semantic roles from fixed slot names such as `picture_2_identity` or `picture_3_scene`; the current structured binding and compiled order are authoritative. Use at most eight ordinary image references. When capacity is insufficient, preserve visible identity boards and the current scene board; retain an expression reference ahead of secondary props or general references only when it carries key story information. Change only visible media sources and direct fields on the freshly read UI workflow. Fully replace the saved sample prompt with the current Clip's recompiled six-section prompt before submission.
 
 ## Execution Source of Truth
 
@@ -80,7 +80,7 @@ T2VA uses exactly:
 
     non_diegetic_music: ...
 
-First-frame and first/last-frame modes add their official alignment syntax before those three sections. Keep those fixed section names and alignment syntax for compatibility, but write all descriptive bodies in natural Chinese. Preserve dialogue, lyrics, and visible on-screen text in their original language; Chinese dialogue uses `<d>[Chinese] ...</d>`.
+First-frame, first/last-frame, and last-frame modes add their official alignment syntax before those three sections. Keep those fixed section names and alignment syntax for compatibility, write all descriptive bodies in English, and preserve dialogue, lyrics, and visible on-screen text in their original language; Chinese dialogue uses `<d>[Chinese] ...</d>`. Execute I2VA or L2VA only when the freshly read Canvas UI JSON exposes the required single endpoint.
 
 Set `non_diegetic_music: none` by default. Only include non-diegetic music when the owner explicitly needs it baked into this single video container; normal BGM belongs to a continuous editable Bcut music track.
 
@@ -109,7 +109,7 @@ For a genuinely off-screen voice with no visible body or mouth, keep the Speaker
 
     <Audio 2> is the voice-timbre reference for off-screen Speaker (S2).
 
-Use the `reference` retention relation for timbre. Put the new exact line under the correct `<Subject N> (Sx)` inside `<d>[Language] ...</d>` in `detailed_description`. Do not add a separate negative-prompt field, suffix, section, or project-specific word blacklist; keep the official structure and write the descriptive prose in natural Chinese.
+Use the `reference` retention relation for timbre. Put the new exact line under the correct `<Subject N> (Sx)` inside `<d>[Language] ...</d>` in `detailed_description`. Do not add a separate negative-prompt field, suffix, section, or project-specific word blacklist; keep the official structure and write the descriptive prose in English.
 
 ## Performance
 

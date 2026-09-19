@@ -225,6 +225,7 @@ func prepareDramaRun(ctx context.Context, run *model.DramaRun, channel model.Mod
 	files := [][]byte{}
 	types := []string{}
 	mediaRefs := []service.DramaComfyUIReference{}
+	mediaRunRefs := []model.DramaRunReference{}
 	kinds := []string{}
 	videoAudio := map[int]bool{}
 	for _, ref := range run.Snapshot.References {
@@ -239,6 +240,7 @@ func prepareDramaRun(ctx context.Context, run *model.DramaRun, channel model.Mod
 		types = append(types, mimeType)
 		kind := strings.Split(mimeType, "/")[0]
 		kinds = append(kinds, kind)
+		mediaRunRefs = append(mediaRunRefs, ref)
 		if run.Provider == "comfyui" && run.Snapshot.Model == "comfyui:minimax-h3-ref2v" && kind == "video" {
 			hasAudio, err := service.DramaVideoHasAudio(ctx, data)
 			if err != nil {
@@ -272,17 +274,14 @@ func prepareDramaRun(ctx context.Context, run *model.DramaRun, channel model.Mod
 	if run.Provider == "comfyui" {
 		switch run.Snapshot.Model {
 		case "comfyui:minimax-h3-ref2v":
-			if len(run.Snapshot.References) == 0 || run.Snapshot.References[0].Role != "storyboard" {
-				return errors.New("第一项必须绑定当前完整故事板")
-			}
-			mapping, err := service.DramaH3InputMapping(run.Snapshot.References, kinds, videoAudio)
+			mapping, err := service.DramaH3InputMappingWithoutKeyframe(mediaRunRefs, kinds, videoAudio)
 			if err != nil {
 				return err
 			}
 			run.Snapshot.InputMapping = mapping
 			run.Snapshot.Prompt = service.CompileDramaPromptWithMapping(run.Snapshot.Prompt, mapping)
 			run.Snapshot.OutputPrefix = "infinite-canvas/drama/" + run.ID + "/video"
-			payload, err := service.PrepareDramaComfyUIWorkflow(ctx, channel.BaseURL, run.ID, run.Snapshot.Prompt, run.Snapshot.Parameters, mediaRefs)
+			payload, err := service.PrepareDramaComfyUIWorkflowWithoutKeyframe(ctx, channel.BaseURL, run.ID, run.Snapshot.Prompt, run.Snapshot.Parameters, mediaRefs)
 			if err != nil {
 				return err
 			}
